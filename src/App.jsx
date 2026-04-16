@@ -1,6 +1,5 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import Editor from '@monaco-editor/react';
-import JSZip from 'jszip';
 import mermaid from 'mermaid';
 
 const DEFAULT_CODE = `flowchart TD
@@ -17,6 +16,19 @@ mermaid.initialize({
   theme: 'neutral',
   fontFamily: 'KoPubDotum, KoPub Dotum, -apple-system, BlinkMacSystemFont, sans-serif',
   fontSize: 12,
+  themeCSS: `
+    .nodeLabel,
+    .label text,
+    .label foreignObject,
+    .label foreignObject div,
+    .label foreignObject span,
+    .cluster-label text,
+    .cluster-label foreignObject,
+    .cluster-label foreignObject div,
+    .cluster-label foreignObject span {
+      font-weight: 700 !important;
+    }
+  `,
   flowchart: {
     padding: 6,
   },
@@ -98,14 +110,132 @@ function makeTransparentSvg(svgText) {
   return new XMLSerializer().serializeToString(doc);
 }
 
-function getTextFromLabelElement(element) {
-  const foreignNode = element.querySelector('foreignObject span, foreignObject div');
+function fitSvgToContent(svgText, padding = 0) {
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(svgText, 'image/svg+xml');
+  const svg = doc.documentElement;
+  const sandbox = document.createElement('div');
 
-  if (foreignNode) {
-    return foreignNode.textContent?.trim() ?? '';
+  sandbox.style.position = 'fixed';
+  sandbox.style.left = '-10000px';
+  sandbox.style.top = '-10000px';
+  sandbox.style.pointerEvents = 'none';
+  sandbox.style.opacity = '0';
+
+  const measuredSvg = document.importNode(svg, true);
+  sandbox.appendChild(measuredSvg);
+  document.body.appendChild(sandbox);
+
+  try {
+    const bbox = measuredSvg.getBBox();
+
+    if (bbox.width > 0 && bbox.height > 0) {
+      const x = bbox.x - padding;
+      const y = bbox.y - padding;
+      const width = bbox.width + padding * 2;
+      const height = bbox.height + padding * 2;
+
+      measuredSvg.setAttribute('viewBox', `${x} ${y} ${width} ${height}`);
+      measuredSvg.setAttribute('width', `${width}`);
+      measuredSvg.setAttribute('height', `${height}`);
+      measuredSvg.removeAttribute('style');
+      measuredSvg.style.backgroundColor = 'transparent';
+    }
+
+    return new XMLSerializer().serializeToString(measuredSvg);
+  } finally {
+    document.body.removeChild(sandbox);
+  }
+}
+
+function getSvgExportMetrics(svgText) {
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(svgText, 'image/svg+xml');
+  const svg = doc.documentElement;
+  const viewBox = svg.getAttribute('viewBox');
+  const widthAttr = Number.parseFloat(svg.getAttribute('width') ?? '');
+  const heightAttr = Number.parseFloat(svg.getAttribute('height') ?? '');
+
+  if (viewBox) {
+    const parts = viewBox
+      .trim()
+      .split(/[\s,]+/)
+      .map((value) => Number.parseFloat(value));
+
+    if (parts.length === 4 && parts.every((value) => Number.isFinite(value))) {
+      return {
+        width: Math.max(1, Math.ceil(parts[2])),
+        height: Math.max(1, Math.ceil(parts[3])),
+      };
+    }
   }
 
-  const tspans = element.querySelectorAll('text tspan');
+  return {
+    width: Number.isFinite(widthAttr) && widthAttr > 0 ? Math.ceil(widthAttr) : 1200,
+    height: Number.isFinite(heightAttr) && heightAttr > 0 ? Math.ceil(heightAttr) : 800,
+  };
+}
+
+function createDownloadTarget(filename) {
+  return {
+    kind: 'download',
+    filename,
+  };
+}
+
+async function saveBlob(target, blob, filename) {
+  if (typeof navigator !== 'undefined' && 'msSaveOrOpenBlob' in navigator) {
+    navigator.msSaveOrOpenBlob(blob, filename);
+    return;
+  }
+
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  link.rel = 'noopener';
+  link.style.display = 'none';
+  document.body.appendChild(link);
+  link.click();
+
+  window.setTimeout(() => {
+    URL.revokeObjectURL(url);
+    document.body.removeChild(link);
+  }, 3000);
+}
+
+function collectEditableGroups(root) {
+  return Array.from(root.querySelectorAll('g.edgeLabel, g.node, g.cluster, g.actor, g.note'));
+}
+
+function findBestLabelNode(element) {
+  const foreignNodes = element.querySelectorAll(
+    'g.label foreignObject span, g.label foreignObject div, g.nodeLabel foreignObject span, g.nodeLabel foreignObject div, .cluster-label foreignObject span, .cluster-label foreignObject div, foreignObject span, foreignObject div',
+  );
+
+  if (foreignNodes.length > 0) {
+    return foreignNodes[foreignNodes.length - 1];
+  }
+
+  const textCandidates = element.querySelectorAll(
+    'g.label text, g.nodeLabel text, .cluster-label text, text',
+  );
+
+  return textCandidates[textCandidates.length - 1] ?? null;
+}
+
+function getTextFromLabelElement(element) {
+  const labelNode = findBestLabelNode(element);
+
+  if (!labelNode) {
+    return '';
+  }
+
+  if (labelNode.tagName.toLowerCase() !== 'text') {
+    return labelNode.textContent?.trim() ?? '';
+  }
+
+  const tspans = labelNode.querySelectorAll('tspan');
 
   if (tspans.length > 0) {
     return Array.from(tspans)
@@ -114,51 +244,36 @@ function getTextFromLabelElement(element) {
       .trim();
   }
 
-  const textNode = element.querySelector('text');
-
-  return textNode?.textContent?.trim() ?? '';
+  return labelNode.textContent?.trim() ?? '';
 }
 
 function applyTextToLabelElement(element, nextText) {
   const lines = nextText.split('\n');
-  const foreignNode = element.querySelector('foreignObject span, foreignObject div');
+  const labelNode = findBestLabelNode(element);
 
-  if (foreignNode) {
-    foreignNode.innerHTML = '';
-    lines.forEach((line, index) => {
-      if (index > 0) {
-        foreignNode.appendChild(document.createElement('br'));
-      }
-      foreignNode.appendChild(document.createTextNode(line));
-    });
+  if (!labelNode) {
     return;
   }
 
-  const textNode = element.querySelector('text');
+  const ownerDocument = labelNode.ownerDocument;
 
-  if (!textNode) {
+  if (labelNode.tagName.toLowerCase() !== 'text') {
+    labelNode.textContent = nextText;
     return;
   }
 
-  const existingTspans = Array.from(textNode.querySelectorAll('tspan'));
+  const x = labelNode.getAttribute('x') ?? '0';
+  labelNode.replaceChildren();
 
-  if (existingTspans.length > 0) {
-    const firstX = existingTspans[0].getAttribute('x') ?? textNode.getAttribute('x') ?? '0';
-    const firstDy = existingTspans[0].getAttribute('dy') ?? '0';
-    const lineDy = existingTspans[1]?.getAttribute('dy') ?? existingTspans[0].getAttribute('dy') ?? '1.2em';
-
-    textNode.replaceChildren();
-    lines.forEach((line, index) => {
-      const tspan = document.createElementNS('http://www.w3.org/2000/svg', 'tspan');
-      tspan.setAttribute('x', firstX);
-      tspan.setAttribute('dy', index === 0 ? firstDy : lineDy);
-      tspan.textContent = line;
-      textNode.appendChild(tspan);
-    });
-    return;
-  }
-
-  textNode.textContent = nextText;
+  lines.forEach((line, index) => {
+    const tspan = ownerDocument.createElementNS('http://www.w3.org/2000/svg', 'tspan');
+    tspan.setAttribute('x', x);
+    if (index > 0) {
+      tspan.setAttribute('dy', '1.2em');
+    }
+    tspan.textContent = line;
+    labelNode.appendChild(tspan);
+  });
 }
 
 function findEditableLabelTarget(target) {
@@ -178,6 +293,57 @@ function findEditableLabelTarget(target) {
     labelTarget.closest('g.node, g.cluster, g.edgeLabel, g.actor, g.note') ??
     labelTarget
   );
+}
+
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function replaceNodeLabelInCode(code, currentText, nextLabel) {
+  const escapedText = escapeRegExp(currentText);
+  const patterns = [
+    { regex: new RegExp(`\\[\\[${escapedText}\\]\\]`), replace: `[[${nextLabel}]]` },
+    { regex: new RegExp(`\\(\\(${escapedText}\\)\\)`), replace: `((${nextLabel}))` },
+    { regex: new RegExp(`\\{\\{${escapedText}\\}\\}`), replace: `{{${nextLabel}}}` },
+    { regex: new RegExp(`\\(\\[${escapedText}\\]\\)`), replace: `([${nextLabel}])` },
+    { regex: new RegExp(`\\[\\(${escapedText}\\)\\]`), replace: `[(${nextLabel})]` },
+    { regex: new RegExp(`\\[${escapedText}\\]`), replace: `[${nextLabel}]` },
+    { regex: new RegExp(`\\(${escapedText}\\)`), replace: `(${nextLabel})` },
+    { regex: new RegExp(`\\{${escapedText}\\}`), replace: `{${nextLabel}}` },
+  ];
+
+  for (const pattern of patterns) {
+    if (pattern.regex.test(code)) {
+      return code.replace(pattern.regex, pattern.replace);
+    }
+  }
+
+  return code;
+}
+
+function replaceEdgeLabelInCode(code, currentText, nextLabel) {
+  const escapedText = escapeRegExp(currentText);
+  return code.replace(new RegExp(`\\|${escapedText}\\|`), `|${nextLabel}|`);
+}
+
+function getSelectionMeta(target, labelText) {
+  if (target.matches('g.edgeLabel') || target.closest('g.edgeLabel')) {
+    return {
+      kind: 'edgeLabel',
+      currentText: labelText,
+    };
+  }
+
+  const nodeGroup = target.closest('g.node, g.cluster, g.actor, g.note');
+
+  if (nodeGroup) {
+    return {
+      kind: 'node',
+      currentText: labelText,
+    };
+  }
+
+  return null;
 }
 
 function clearSelectedElementStyles(element) {
@@ -252,7 +418,7 @@ function registerMermaidLanguage(monaco) {
   });
 }
 
-function MermaidPreview({ code, zoom, onErrorChange, onSvgChange }) {
+function MermaidPreview({ code, zoom, onErrorChange, onSvgChange, onApplySelection }) {
   const [svg, setSvg] = useState('');
   const [selectedTarget, setSelectedTarget] = useState(null);
   const [draftText, setDraftText] = useState('');
@@ -306,6 +472,10 @@ function MermaidPreview({ code, zoom, onErrorChange, onSvgChange }) {
       return;
     }
 
+    if (event.target.closest('.preview-modal')) {
+      return;
+    }
+
     const target = findEditableLabelTarget(event.target);
 
     if (!target || !svgHostRef.current.contains(target)) {
@@ -324,11 +494,11 @@ function MermaidPreview({ code, zoom, onErrorChange, onSvgChange }) {
 
     const canvasRect = canvasRef.current.getBoundingClientRect();
     const targetRect = target.getBoundingClientRect();
-
     clearSelectedElementStyles(selectedElementRef.current);
+    target.setAttribute('data-edit-target', 'active-selection');
     applySelectedElementStyles(target);
     selectedElementRef.current = target;
-    setSelectedTarget(target.id || `target-${Date.now()}`);
+    setSelectedTarget(getSelectionMeta(target, labelText));
     setDraftText(labelText);
     setModalPosition({
       left: targetRect.left - canvasRect.left + canvasRef.current.scrollLeft,
@@ -336,30 +506,26 @@ function MermaidPreview({ code, zoom, onErrorChange, onSvgChange }) {
     });
   }
 
-  function syncEditedSvg() {
-    if (!svgHostRef.current) {
-      return;
-    }
-
-    const svgElement = svgHostRef.current.querySelector('svg');
-
-    if (!svgElement) {
-      return;
-    }
-
-    const serializedSvg = new XMLSerializer().serializeToString(svgElement);
-    setSvg(serializedSvg);
-    onSvgChange(serializedSvg);
-  }
-
   function handleApplyEdit() {
-    if (!selectedElementRef.current) {
+    if (!selectedTarget) {
       return;
     }
 
-    applyTextToLabelElement(selectedElementRef.current, draftText);
-    syncEditedSvg();
+    const applied = onApplySelection(selectedTarget, draftText);
+
+    if (!applied && selectedElementRef.current && svgHostRef.current) {
+      applyTextToLabelElement(selectedElementRef.current, draftText);
+      const svgElement = svgHostRef.current.querySelector('svg');
+
+      if (svgElement) {
+        const nextSvg = new XMLSerializer().serializeToString(svgElement);
+        setSvg(nextSvg);
+        onSvgChange(nextSvg);
+      }
+    }
+
     clearSelectedElementStyles(selectedElementRef.current);
+    selectedElementRef.current?.removeAttribute('data-edit-target');
     selectedElementRef.current = null;
     setSelectedTarget(null);
     setModalPosition(null);
@@ -375,6 +541,7 @@ function MermaidPreview({ code, zoom, onErrorChange, onSvgChange }) {
       event.preventDefault();
       setSelectedTarget(null);
       clearSelectedElementStyles(selectedElementRef.current);
+      selectedElementRef.current?.removeAttribute('data-edit-target');
       selectedElementRef.current = null;
       setModalPosition(null);
     }
@@ -403,6 +570,7 @@ function MermaidPreview({ code, zoom, onErrorChange, onSvgChange }) {
             left: modalPosition.left,
             top: modalPosition.top,
           }}
+          onClick={(event) => event.stopPropagation()}
         >
           <p className="preview-modal-title">Edit Label</p>
           <textarea
@@ -421,6 +589,7 @@ function MermaidPreview({ code, zoom, onErrorChange, onSvgChange }) {
               onClick={() => {
                 setSelectedTarget(null);
                 clearSelectedElementStyles(selectedElementRef.current);
+                selectedElementRef.current?.removeAttribute('data-edit-target');
                 selectedElementRef.current = null;
                 setModalPosition(null);
               }}
@@ -452,6 +621,36 @@ export default function App() {
     () => buildErrorGuide(parseError, errorLocation),
     [errorLocation, parseError],
   );
+
+  function updateSplitRatio(nextRatio) {
+    setSplitRatio(Math.min(80, Math.max(20, Number(nextRatio.toFixed(1)))));
+  }
+
+  function handlePreviewSelectionApply(selection, nextText) {
+    if (!selection) {
+      return false;
+    }
+
+    if (selection.kind === 'node' && selection.currentText) {
+      const nextCode = replaceNodeLabelInCode(code, selection.currentText, nextText);
+
+      if (nextCode !== code) {
+        setCode(nextCode);
+        return true;
+      }
+    }
+
+    if (selection.kind === 'edgeLabel' && selection.currentText) {
+      const nextCode = replaceEdgeLabelInCode(code, selection.currentText, nextText);
+
+      if (nextCode !== code) {
+        setCode(nextCode);
+        return true;
+      }
+    }
+
+    return false;
+  }
 
   useEffect(() => {
     if (!monacoRef.current || !editorRef.current) {
@@ -588,7 +787,7 @@ export default function App() {
 
       const rect = workspaceRef.current.getBoundingClientRect();
       const nextRatio = ((event.clientX - rect.left) / rect.width) * 100;
-      setSplitRatio(Math.min(70, Math.max(20, Number(nextRatio.toFixed(1)))));
+      updateSplitRatio(nextRatio);
     }
 
     function handleResizeEnd() {
@@ -610,38 +809,71 @@ export default function App() {
     };
   }, []);
 
-  async function handleDownloadSvg() {
+  async function handleDownloadPng() {
     if (!svgContent) {
       return;
     }
 
     try {
-      const rawBaseName = window.prompt('파일 이름을 입력하세요', 'mermaid-diagram');
+      const saveTarget = createDownloadTarget('mermaid-diagram.png');
+      const transparentSvg = fitSvgToContent(makeTransparentSvg(svgContent));
+      const { width, height } = getSvgExportMetrics(transparentSvg);
+      const svgUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(transparentSvg)}`;
+      const image = new Image();
 
-      if (!rawBaseName) {
-        return;
+      await new Promise((resolve, reject) => {
+        image.onload = resolve;
+        image.onerror = reject;
+        image.src = svgUrl;
+      });
+
+      const scale = 2;
+      const canvas = document.createElement('canvas');
+      canvas.width = width * scale;
+      canvas.height = height * scale;
+      const ctx = canvas.getContext('2d');
+
+      if (!ctx) {
+        throw new Error('PNG 변환용 캔버스를 만들지 못했습니다.');
       }
 
-      const baseName = rawBaseName.replace(/[\\/:*?"<>|]/g, '').trim() || 'mermaid-diagram';
-      const transparentSvg = makeTransparentSvg(svgContent);
-      const zip = new JSZip();
-      zip.file(`${baseName}.svg`, transparentSvg);
-      zip.file(`${baseName}.mmd`, code);
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.scale(scale, scale);
+      ctx.drawImage(image, 0, 0, width, height);
 
-      const zipBlob = await zip.generateAsync({ type: 'blob' });
-      const url = URL.createObjectURL(zipBlob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `${baseName}.zip`;
-      link.click();
-      URL.revokeObjectURL(url);
+      const pngBlob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+
+      if (!pngBlob) {
+        throw new Error('PNG 변환에 실패했습니다.');
+      }
+
+      if (pngBlob.size === 0) {
+        throw new Error('PNG 파일이 비어 있습니다.');
+      }
+
+      await saveBlob(saveTarget, pngBlob, 'mermaid-diagram.png');
       setDownloadError('');
     } catch (error) {
       if (error?.name === 'AbortError') {
         return;
       }
 
-      setDownloadError('ZIP 파일 생성 또는 다운로드에 실패했습니다.');
+      setDownloadError('PNG 생성 또는 다운로드에 실패했습니다.');
+    }
+  }
+
+  async function handleDownloadCode() {
+    try {
+      const saveTarget = createDownloadTarget('mermaid-diagram.mmd');
+      const codeBlob = new Blob([code], { type: 'text/plain;charset=utf-8' });
+      await saveBlob(saveTarget, codeBlob, 'mermaid-diagram.mmd');
+      setDownloadError('');
+    } catch (error) {
+      if (error?.name === 'AbortError') {
+        return;
+      }
+
+      setDownloadError('MMD 생성 또는 다운로드에 실패했습니다.');
     }
   }
 
@@ -714,8 +946,7 @@ export default function App() {
                 <pre className="editor-guide-error-text">{downloadError}</pre>
               ) : (
                 <p className="editor-guide-copy">
-                  Monaco Editor 기반 하이라이팅과 오류 표시가 적용되어 있습니다. Mermaid 문법 오류가 생기면
-                  가이드 패널에서 원인과 메시지를 안내합니다.
+                  현재 화면 기준으로 PNG와 MMD를 각각 다운로드합니다. 다른 사용자와 자동 공유되지 않습니다.
                 </p>
               )}
             </div>
@@ -737,10 +968,17 @@ export default function App() {
               <button
                 type="button"
                 className="download-button"
-                onClick={handleDownloadSvg}
+                onClick={handleDownloadPng}
                 disabled={!svgContent}
               >
-                Download(코드/프리뷰)
+                Download PNG
+              </button>
+              <button
+                type="button"
+                className="download-button"
+                onClick={handleDownloadCode}
+              >
+                Download MMD
               </button>
               <button
                 type="button"
@@ -771,6 +1009,7 @@ export default function App() {
               zoom={zoom}
               onErrorChange={setParseError}
               onSvgChange={setSvgContent}
+              onApplySelection={handlePreviewSelectionApply}
             />
           </div>
           <div className="preview-footer">

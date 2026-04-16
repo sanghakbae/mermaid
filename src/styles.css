@@ -1,9 +1,10 @@
 :root {
   font-family: "KoPubDotum", "KoPub Dotum", -apple-system, BlinkMacSystemFont, sans-serif;
-  color: #111827;
+  color: #142033;
   background:
-    radial-gradient(circle at top, rgba(148, 163, 184, 0.14), transparent 30%),
-    linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%);
+    radial-gradient(circle at 0% 0%, rgba(67, 97, 238, 0.08), transparent 28%),
+    radial-gradient(circle at 100% 0%, rgba(0, 163, 108, 0.08), transparent 22%),
+    linear-gradient(180deg, #f4f7fb 0%, #ecf1f7 48%, #e8edf4 100%);
   line-height: 1.5;
   font-weight: 400;
   text-rendering: optimizeLegibility;
@@ -21,11 +22,14 @@ body,
   width: 100%;
   height: 100%;
   margin: 0;
+  overflow: hidden;
 }
 
 body {
   min-width: 100vw;
   min-height: 100vh;
+  color: #142033;
+  overflow: hidden;
 }
 
 button,
@@ -38,59 +42,93 @@ input {
   display: flex;
   flex-direction: column;
   width: 100%;
-  min-height: 100vh;
-  padding: 12px;
+  height: 100vh;
+  padding: 14px;
+  overflow: hidden;
 }
 
 .topbar {
   display: flex;
   align-items: center;
-  min-height: 36px;
-  margin-bottom: 12px;
+  min-height: 44px;
+  margin-bottom: 14px;
 }
 
 .eyebrow {
-  margin: 0 0 8px;
-  font-size: 0.8rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  padding: 8px 14px;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.7);
+  box-shadow: 0 8px 30px rgba(15, 23, 42, 0.06);
+  font-size: 12px;
   font-weight: 700;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: #475569;
+  color: #324256;
+  backdrop-filter: blur(16px);
+}
+
+.eyebrow::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #4f46e5, #0ea5a4);
+  box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.1);
 }
 
 .workspace {
   flex: 1;
   display: flex;
-  gap: 12px;
+  gap: 14px;
   min-height: 0;
+  overflow: hidden;
 }
 
 .left-stack {
   display: flex;
   flex-direction: column;
   flex: 0 0 30%;
-  grid-template-rows: minmax(0, 1fr) auto;
-  gap: 12px;
+  gap: 14px;
   min-height: 0;
   min-width: 0;
+  overflow: hidden;
 }
 
 .preview-panel {
   flex: 1 1 auto;
   min-width: 0;
+  overflow: hidden;
 }
 
 .panel-resizer {
-  flex: 0 0 10px;
+  position: relative;
+  flex: 0 0 12px;
   align-self: stretch;
   border-radius: 999px;
-  background: rgba(148, 163, 184, 0.2);
+  background: transparent;
   cursor: col-resize;
-  transition: background 120ms ease-out;
+  transition: transform 120ms ease-out;
+}
+
+.panel-resizer::before {
+  content: "";
+  position: absolute;
+  top: 10px;
+  bottom: 10px;
+  left: 50%;
+  width: 4px;
+  transform: translateX(-50%);
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(148, 163, 184, 0.18), rgba(100, 116, 139, 0.38), rgba(148, 163, 184, 0.18));
 }
 
 .panel-resizer:hover {
-  background: rgba(100, 116, 139, 0.35);
+  transform: scaleX(1.08);
 }
 
 body.is-resizing-panels {
@@ -101,40 +139,67 @@ body.is-resizing-panels {
 .editor-panel {
   flex: 1 1 auto;
   min-height: 0;
+  overflow: hidden;
 }
 
 .guide-panel {
-  min-height: 148px;
+  flex: 0 1 auto;
+  min-height: 180px;
+  max-height: 48%;
 }
 
 .panel {
   display: flex;
   flex-direction: column;
   min-height: 0;
-  border: 1px solid rgba(148, 163, 184, 0.25);
-  border-radius: 24px;
-  background: rgba(255, 255, 255, 0.78);
-  backdrop-filter: blur(18px);
-  box-shadow: 0 20px 60px rgba(15, 23, 42, 0.07);
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 28px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(249, 251, 253, 0.86));
+  backdrop-filter: blur(20px);
+  box-shadow:
+    0 24px 80px rgba(15, 23, 42, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.85);
   overflow: hidden;
+}
+
+.editor-panel {
+  background:
+    linear-gradient(180deg, rgba(248, 250, 253, 0.96), rgba(241, 245, 250, 0.92));
+}
+
+.preview-panel {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(247, 250, 252, 0.92));
+}
+
+.guide-panel {
+  background:
+    linear-gradient(180deg, rgba(245, 249, 252, 0.94), rgba(240, 245, 250, 0.9));
 }
 
 .panel-header {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  padding: 12px 16px 10px;
-  border-bottom: 1px solid rgba(148, 163, 184, 0.16);
+  padding: 14px 18px 11px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.14);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(255, 255, 255, 0.34));
 }
 
 .panel-header h2 {
   margin: 0;
-  font-size: 1rem;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: #172235;
 }
 
 .panel-header span {
-  font-size: 0.82rem;
-  color: #64748b;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #7a8798;
 }
 
 .panel-toolbar {
@@ -175,40 +240,48 @@ body.is-resizing-panels {
 .preview-toolbar {
   display: flex;
   align-items: center;
-  gap: 10px;
-  font-size: 0.82rem;
-  color: #64748b;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #516173;
 }
 
 .zoom-button {
-  width: 28px;
-  height: 28px;
-  border: 1px solid rgba(148, 163, 184, 0.24);
+  min-width: 30px;
+  height: 30px;
+  padding: 0 10px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.85);
-  color: #0f172a;
+  background: rgba(255, 255, 255, 0.94);
+  color: #213045;
   cursor: pointer;
   line-height: 1;
+  font-weight: 700;
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.05);
 }
 
 .zoom-button:hover {
   background: #ffffff;
+  transform: translateY(-1px);
 }
 
 .download-button {
-  height: 28px;
-  padding: 0 10px;
-  border: 1px solid #334155;
+  height: 32px;
+  padding: 0 14px;
+  border: 1px solid #1d293d;
   border-radius: 999px;
-  background: #334155;
+  background: linear-gradient(180deg, #334155, #1f2937);
   color: #ffffff;
   cursor: pointer;
   white-space: nowrap;
   font-weight: 700;
+  letter-spacing: -0.01em;
+  box-shadow: 0 10px 24px rgba(31, 41, 55, 0.16);
 }
 
 .download-button:hover:not(:disabled) {
-  background: #1f2937;
+  background: linear-gradient(180deg, #27364a, #182132);
+  transform: translateY(-1px);
 }
 
 .download-button:disabled {
@@ -243,6 +316,8 @@ body.is-resizing-panels {
   position: relative;
   flex: 1;
   min-height: 0;
+  background:
+    linear-gradient(180deg, rgba(252, 253, 255, 0.8), rgba(245, 248, 252, 0.9));
 }
 
 .editor-highlight {
@@ -306,12 +381,13 @@ body.is-resizing-panels {
 
 .editor-guide {
   flex: 1;
-  padding: 12px 16px 14px;
-  background: rgba(248, 250, 252, 0.55);
+  padding: 14px 16px 16px;
+  background: linear-gradient(180deg, rgba(247, 250, 253, 0.72), rgba(241, 246, 250, 0.9));
+  overflow: auto;
 }
 
 .editor-guide-error {
-  background: rgba(254, 242, 242, 0.72);
+  background: linear-gradient(180deg, rgba(254, 242, 242, 0.76), rgba(255, 236, 236, 0.92));
 }
 
 .editor-guide-label {
@@ -325,8 +401,9 @@ body.is-resizing-panels {
 
 .editor-guide-copy {
   margin: 0;
-  font-size: 11px;
-  color: #475569;
+  font-size: 12px;
+  line-height: 1.55;
+  color: #516173;
 }
 
 .editor-guide-error .editor-guide-label,
@@ -339,14 +416,18 @@ body.is-resizing-panels {
   white-space: pre-wrap;
   word-break: break-word;
   font-size: 11px;
-  color: #7f1d1d;
+  line-height: 1.5;
+  color: #8f1f1f;
 }
 
 .preview-canvas {
   flex: 1;
   min-height: 0;
-  padding: 16px;
+  padding: 18px;
   overflow: auto;
+  background:
+    radial-gradient(circle at top, rgba(255, 255, 255, 0.86), transparent 55%),
+    linear-gradient(180deg, rgba(246, 249, 252, 0.9), rgba(240, 245, 249, 0.92));
 }
 
 .monaco-editor .margin-view-overlays .line-numbers {
@@ -367,10 +448,11 @@ body.is-resizing-panels {
   display: flex;
   justify-content: space-between;
   gap: 16px;
-  padding: 10px 16px 12px;
-  border-top: 1px solid rgba(148, 163, 184, 0.16);
+  padding: 11px 16px 13px;
+  border-top: 1px solid rgba(148, 163, 184, 0.14);
   font-size: 11px;
-  color: #64748b;
+  color: #6f7d8f;
+  background: rgba(255, 255, 255, 0.48);
 }
 
 .mermaid-output,
@@ -378,11 +460,14 @@ body.is-resizing-panels {
   display: grid;
   place-items: center;
   min-height: 100%;
-  padding: 20px;
-  border-radius: 18px;
+  padding: 24px;
+  border-radius: 22px;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.8), rgba(248, 250, 252, 0.96));
-  border: 1px solid rgba(148, 163, 184, 0.18);
+    linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(248, 250, 252, 0.98));
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.82),
+    0 16px 44px rgba(15, 23, 42, 0.05);
 }
 
 .mermaid-scale {
@@ -424,9 +509,11 @@ body.is-resizing-panels {
   width: min(420px, calc(100% - 32px));
   padding: 16px;
   border: 1px solid rgba(148, 163, 184, 0.24);
-  border-radius: 16px;
+  border-radius: 18px;
   background: rgba(255, 255, 255, 0.98);
-  box-shadow: 0 24px 64px rgba(15, 23, 42, 0.18);
+  box-shadow:
+    0 24px 64px rgba(15, 23, 42, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.86);
 }
 
 .preview-modal-title {
@@ -439,7 +526,7 @@ body.is-resizing-panels {
 .preview-textarea {
   width: 100%;
   min-height: 96px;
-  padding: 10px 12px;
+  padding: 12px 14px;
   border: 1px solid rgba(148, 163, 184, 0.3);
   border-radius: 12px;
   resize: vertical;
@@ -449,6 +536,7 @@ body.is-resizing-panels {
   line-height: 1.4;
   color: #0f172a;
   background: #ffffff;
+  box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.03);
 }
 
 .preview-text-editor-actions {
@@ -461,19 +549,21 @@ body.is-resizing-panels {
 .preview-edit-button {
   height: 30px;
   padding: 0 12px;
-  border: 1px solid #334155;
+  border: 1px solid #1d293d;
   border-radius: 999px;
-  background: #334155;
+  background: linear-gradient(180deg, #334155, #1f2937);
   color: #ffffff;
   cursor: pointer;
   font-weight: 700;
   font-size: 12px;
+  box-shadow: 0 8px 20px rgba(31, 41, 55, 0.16);
 }
 
 .preview-edit-button.secondary {
   border-color: rgba(148, 163, 184, 0.32);
-  background: #ffffff;
+  background: rgba(255, 255, 255, 0.96);
   color: #334155;
+  box-shadow: none;
 }
 
 .mermaid-output svg {
@@ -522,11 +612,11 @@ body.is-resizing-panels {
 
 @media (max-width: 960px) {
   .app-shell {
-    padding: 8px;
+    padding: 10px;
   }
 
   .topbar {
-    margin-bottom: 8px;
+    margin-bottom: 10px;
   }
 
   .workspace {
