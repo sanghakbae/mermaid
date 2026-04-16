@@ -89,6 +89,11 @@ input {
   overflow: hidden;
 }
 
+.workspace.is-mobile-client {
+  flex-direction: column;
+  min-height: 0;
+}
+
 .left-stack {
   display: flex;
   flex-direction: column;
@@ -99,10 +104,19 @@ input {
   overflow: hidden;
 }
 
+.workspace.is-mobile-client .left-stack {
+  flex: 1 1 auto !important;
+}
+
 .preview-panel {
   flex: 1 1 auto;
   min-width: 0;
   overflow: hidden;
+}
+
+.workspace.is-mobile-client .preview-panel {
+  flex: 1 1 auto !important;
+  min-height: 0;
 }
 
 .panel-resizer {
@@ -148,6 +162,11 @@ body.is-resizing-panels {
   max-height: 48%;
 }
 
+.workspace.is-mobile-client .guide-panel {
+  min-height: 160px;
+  max-height: 34vh;
+}
+
 .panel {
   display: flex;
   flex-direction: column;
@@ -160,6 +179,18 @@ body.is-resizing-panels {
     0 24px 80px rgba(15, 23, 42, 0.08),
     inset 0 1px 0 rgba(255, 255, 255, 0.85);
   overflow: hidden;
+}
+
+.workspace.is-mobile-client .panel {
+  min-height: min(420px, 48vh);
+}
+
+.workspace.is-mobile-client .editor-panel {
+  min-height: 38vh;
+}
+
+.workspace.is-mobile-client .preview-panel {
+  min-height: 42vh;
 }
 
 .editor-panel {
@@ -240,6 +271,7 @@ body.is-resizing-panels {
 .preview-toolbar {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
   font-size: 12px;
   font-weight: 700;
@@ -453,6 +485,56 @@ body.is-resizing-panels {
   font-size: 11px;
   color: #6f7d8f;
   background: rgba(255, 255, 255, 0.48);
+}
+
+.workspace.is-mobile-client .preview-footer {
+  flex-direction: column;
+  gap: 6px;
+}
+
+.workspace.is-mobile-client .panel-header {
+  padding: 12px 14px 10px;
+}
+
+.workspace.is-mobile-client .panel-header h2 {
+  font-size: 14px;
+}
+
+.workspace.is-mobile-client .panel-header span {
+  font-size: 10px;
+}
+
+.workspace.is-mobile-client .editor-guide {
+  padding: 12px 14px 14px;
+}
+
+.workspace.is-mobile-client .editor-guide-copy,
+.workspace.is-mobile-client .editor-guide-error-text {
+  font-size: 11px;
+}
+
+.workspace.is-mobile-client .preview-toolbar {
+  gap: 6px;
+}
+
+.workspace.is-mobile-client .download-button,
+.workspace.is-mobile-client .zoom-button {
+  height: 36px;
+  font-size: 12px;
+}
+
+.workspace.is-mobile-client .download-button {
+  padding: 0 12px;
+}
+
+.workspace.is-mobile-client .preview-canvas {
+  padding: 12px;
+}
+
+.workspace.is-mobile-client .mermaid-output,
+.workspace.is-mobile-client .preview-state {
+  padding: 16px;
+  border-radius: 18px;
 }
 
 .mermaid-output,

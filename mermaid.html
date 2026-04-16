@@ -1,0 +1,736 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Mermaid Live Editor</title>
+    <style>
+      :root {
+        font-family: "KoPubDotum", "KoPub Dotum", -apple-system, BlinkMacSystemFont, sans-serif;
+        color: #142033;
+        background:
+          radial-gradient(circle at 0% 0%, rgba(67, 97, 238, 0.08), transparent 28%),
+          radial-gradient(circle at 100% 0%, rgba(0, 163, 108, 0.08), transparent 22%),
+          linear-gradient(180deg, #f4f7fb 0%, #ecf1f7 48%, #e8edf4 100%);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        overflow: hidden;
+      }
+
+      body {
+        color: #142033;
+      }
+
+      button,
+      textarea {
+        font: inherit;
+      }
+
+      .app-shell {
+        display: flex;
+        flex-direction: column;
+        width: 100%;
+        height: 100vh;
+        padding: 14px;
+        overflow: hidden;
+      }
+
+      .topbar {
+        display: flex;
+        align-items: center;
+        min-height: 44px;
+        margin-bottom: 14px;
+      }
+
+      .eyebrow {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        margin: 0;
+        padding: 8px 14px;
+        border: 1px solid rgba(148, 163, 184, 0.24);
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.7);
+        box-shadow: 0 8px 30px rgba(15, 23, 42, 0.06);
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: #324256;
+        backdrop-filter: blur(16px);
+      }
+
+      .eyebrow::before {
+        content: "";
+        width: 8px;
+        height: 8px;
+        border-radius: 999px;
+        background: linear-gradient(135deg, #4f46e5, #0ea5a4);
+        box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.1);
+      }
+
+      .workspace {
+        flex: 1;
+        display: flex;
+        gap: 14px;
+        min-height: 0;
+        overflow: hidden;
+      }
+
+      .workspace.is-mobile-client {
+        flex-direction: column;
+      }
+
+      .left-stack {
+        display: flex;
+        flex-direction: column;
+        flex: 0 0 30%;
+        gap: 14px;
+        min-height: 0;
+        min-width: 0;
+        overflow: hidden;
+      }
+
+      .workspace.is-mobile-client .left-stack {
+        flex: 1 1 auto !important;
+      }
+
+      .panel {
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+        border: 1px solid rgba(148, 163, 184, 0.22);
+        border-radius: 28px;
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(249, 251, 253, 0.86));
+        backdrop-filter: blur(20px);
+        box-shadow:
+          0 24px 80px rgba(15, 23, 42, 0.08),
+          inset 0 1px 0 rgba(255, 255, 255, 0.85);
+        overflow: hidden;
+      }
+
+      .editor-panel {
+        flex: 1 1 auto;
+        min-height: 0;
+        background: linear-gradient(180deg, rgba(248, 250, 253, 0.96), rgba(241, 245, 250, 0.92));
+      }
+
+      .guide-panel {
+        flex: 0 1 auto;
+        min-height: 180px;
+        max-height: 48%;
+        background: linear-gradient(180deg, rgba(245, 249, 252, 0.94), rgba(240, 245, 250, 0.9));
+      }
+
+      .workspace.is-mobile-client .guide-panel {
+        min-height: 160px;
+        max-height: 34vh;
+      }
+
+      .preview-panel {
+        flex: 1 1 auto;
+        min-width: 0;
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(247, 250, 252, 0.92));
+      }
+
+      .workspace.is-mobile-client .preview-panel {
+        flex: 1 1 auto !important;
+        min-height: 42vh;
+      }
+
+      .panel-header {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        padding: 14px 18px 11px;
+        border-bottom: 1px solid rgba(148, 163, 184, 0.14);
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(255, 255, 255, 0.34));
+      }
+
+      .panel-header h2 {
+        margin: 0;
+        font-size: 15px;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+        color: #172235;
+      }
+
+      .panel-header span {
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: #7a8798;
+      }
+
+      .panel-resizer {
+        position: relative;
+        flex: 0 0 12px;
+        align-self: stretch;
+        cursor: col-resize;
+      }
+
+      .panel-resizer::before {
+        content: "";
+        position: absolute;
+        top: 10px;
+        bottom: 10px;
+        left: 50%;
+        width: 4px;
+        transform: translateX(-50%);
+        border-radius: 999px;
+        background: linear-gradient(180deg, rgba(148, 163, 184, 0.18), rgba(100, 116, 139, 0.38), rgba(148, 163, 184, 0.18));
+      }
+
+      .editor-shell {
+        flex: 1;
+        min-height: 0;
+        background: linear-gradient(180deg, rgba(252, 253, 255, 0.8), rgba(245, 248, 252, 0.9));
+      }
+
+      .code-input {
+        width: 100%;
+        height: 100%;
+        border: 0;
+        resize: none;
+        outline: none;
+        padding: 24px 18px;
+        background: transparent;
+        color: #0f172a;
+        font-family: "KoPubDotum", "KoPub Dotum", monospace;
+        font-size: 11px;
+        line-height: 1.3;
+        overflow: auto;
+      }
+
+      .editor-guide {
+        flex: 1;
+        padding: 14px 16px 16px;
+        overflow: auto;
+        background: linear-gradient(180deg, rgba(247, 250, 253, 0.72), rgba(241, 246, 250, 0.9));
+      }
+
+      .editor-guide-copy {
+        margin: 0;
+        font-size: 12px;
+        line-height: 1.55;
+        color: #516173;
+        white-space: pre-wrap;
+      }
+
+      .editor-guide-error {
+        color: #8f1f1f;
+      }
+
+      .preview-toolbar {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 8px;
+        font-size: 12px;
+        font-weight: 700;
+        color: #516173;
+      }
+
+      .download-button,
+      .zoom-button {
+        height: 32px;
+        padding: 0 14px;
+        border-radius: 999px;
+        cursor: pointer;
+        font-weight: 700;
+      }
+
+      .download-button {
+        border: 1px solid #1d293d;
+        background: linear-gradient(180deg, #334155, #1f2937);
+        color: #fff;
+      }
+
+      .zoom-button {
+        min-width: 30px;
+        padding: 0 10px;
+        border: 1px solid rgba(148, 163, 184, 0.22);
+        background: rgba(255, 255, 255, 0.94);
+        color: #213045;
+      }
+
+      .preview-canvas {
+        flex: 1;
+        min-height: 0;
+        padding: 18px;
+        overflow: auto;
+        background:
+          radial-gradient(circle at top, rgba(255, 255, 255, 0.86), transparent 55%),
+          linear-gradient(180deg, rgba(246, 249, 252, 0.9), rgba(240, 245, 249, 0.92));
+      }
+
+      .mermaid-output {
+        display: grid;
+        place-items: center;
+        min-height: 100%;
+        padding: 24px;
+        border-radius: 22px;
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(248, 250, 252, 0.98));
+        border: 1px solid rgba(148, 163, 184, 0.16);
+        box-shadow:
+          inset 0 1px 0 rgba(255, 255, 255, 0.82),
+          0 16px 44px rgba(15, 23, 42, 0.05);
+      }
+
+      .mermaid-scale {
+        transform-origin: center center;
+      }
+
+      .preview-footer {
+        display: flex;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 11px 16px 13px;
+        border-top: 1px solid rgba(148, 163, 184, 0.14);
+        font-size: 11px;
+        color: #6f7d8f;
+        background: rgba(255, 255, 255, 0.48);
+      }
+
+      .workspace.is-mobile-client .panel {
+        min-height: min(420px, 48vh);
+      }
+
+      .workspace.is-mobile-client .editor-panel {
+        min-height: 38vh;
+      }
+
+      .workspace.is-mobile-client .panel-header {
+        padding: 12px 14px 10px;
+      }
+
+      .workspace.is-mobile-client .panel-header h2 {
+        font-size: 14px;
+      }
+
+      .workspace.is-mobile-client .panel-header span {
+        font-size: 10px;
+      }
+
+      .workspace.is-mobile-client .editor-guide {
+        padding: 12px 14px 14px;
+      }
+
+      .workspace.is-mobile-client .editor-guide-copy {
+        font-size: 11px;
+      }
+
+      .workspace.is-mobile-client .preview-toolbar {
+        gap: 6px;
+      }
+
+      .workspace.is-mobile-client .download-button,
+      .workspace.is-mobile-client .zoom-button {
+        height: 36px;
+        font-size: 12px;
+      }
+
+      .workspace.is-mobile-client .preview-canvas {
+        padding: 12px;
+      }
+
+      .workspace.is-mobile-client .mermaid-output {
+        padding: 16px;
+        border-radius: 18px;
+      }
+
+      .workspace.is-mobile-client .preview-footer {
+        flex-direction: column;
+        gap: 6px;
+      }
+
+      .error-line {
+        color: #b91c1c;
+        font-weight: 700;
+      }
+
+      @media (max-width: 960px) {
+        .workspace {
+          flex-direction: column;
+        }
+
+        .left-stack,
+        .preview-panel {
+          flex-basis: auto !important;
+        }
+
+        .panel-resizer {
+          display: none;
+        }
+
+        .preview-footer {
+          flex-direction: column;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="topbar">
+        <p class="eyebrow">Mermaid Live Editor</p>
+      </header>
+
+      <section class="workspace" id="workspace">
+        <section class="left-stack" id="leftStack" style="flex-basis: 30%">
+          <article class="panel editor-panel">
+            <div class="panel-header">
+              <h2>Code</h2>
+              <span>Mermaid Syntax</span>
+            </div>
+            <div class="editor-shell" id="editorShell" title="Alt/Option, Ctrl, Cmd + scroll로 코드 확대/축소">
+              <textarea class="code-input" id="codeInput" spellcheck="false"></textarea>
+            </div>
+          </article>
+
+          <article class="panel guide-panel">
+            <div class="panel-header">
+              <h2 id="guideTitle">Guide</h2>
+            </div>
+            <div class="editor-guide">
+              <p class="editor-guide-copy" id="guideText">
+                현재 화면 구조를 유지한 단일 HTML 버전입니다. Mermaid 코드를 입력하면 오른쪽에서 바로 프리뷰를 렌더링합니다.
+              </p>
+            </div>
+          </article>
+        </section>
+
+        <div class="panel-resizer" id="resizer" role="separator" aria-orientation="vertical"></div>
+
+        <article class="panel preview-panel" id="previewPanel" style="flex-basis: 70%">
+          <div class="panel-header">
+            <h2>Preview</h2>
+            <div class="preview-toolbar">
+              <button type="button" class="download-button" id="downloadPng">Download PNG</button>
+              <button type="button" class="download-button" id="downloadMmd">Download MMD</button>
+              <button type="button" class="zoom-button" id="zoomOut">-</button>
+              <span id="zoomLabel">100%</span>
+              <button type="button" class="zoom-button" id="zoomIn">+</button>
+            </div>
+          </div>
+          <div class="preview-canvas" id="previewCanvas" title="Alt/Option, Ctrl, Cmd + scroll로 확대/축소">
+            <div class="mermaid-output">
+              <div class="mermaid-scale" id="previewHost"></div>
+            </div>
+          </div>
+          <div class="preview-footer">
+            <span>Zoom: Windows/Linux Alt + scroll, macOS Option + scroll</span>
+            <span>Fallback: Ctrl 또는 Cmd + scroll, 또는 +/- 버튼</span>
+          </div>
+        </article>
+      </section>
+    </main>
+
+    <script type="module">
+      import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+
+      const DEFAULT_CODE = `flowchart TD
+    A[요구사항 입력] --> B{구문 파싱}
+    B -->|성공| C[Mermaid 렌더링]
+    B -->|실패| D[에러 메시지 표시]
+    C --> E[오른쪽 프리뷰 갱신]`;
+
+      const codeInput = document.getElementById("codeInput");
+      const previewHost = document.getElementById("previewHost");
+      const previewCanvas = document.getElementById("previewCanvas");
+      const guideTitle = document.getElementById("guideTitle");
+      const guideText = document.getElementById("guideText");
+      const zoomLabel = document.getElementById("zoomLabel");
+      const leftStack = document.getElementById("leftStack");
+      const previewPanel = document.getElementById("previewPanel");
+      const workspace = document.getElementById("workspace");
+      const resizer = document.getElementById("resizer");
+
+      let zoom = 1;
+      let codeFontSize = 11;
+      let splitRatio = 30;
+      let resizing = false;
+      let currentSvgText = "";
+      let isMobileClient = false;
+
+      mermaid.initialize({
+        startOnLoad: false,
+        securityLevel: "loose",
+        theme: "neutral",
+        fontFamily: "KoPubDotum, KoPub Dotum, -apple-system, BlinkMacSystemFont, sans-serif",
+        fontSize: 12,
+        themeCSS: `
+          .nodeLabel,
+          .label text,
+          .label foreignObject,
+          .label foreignObject div,
+          .label foreignObject span,
+          .cluster-label text,
+          .cluster-label foreignObject,
+          .cluster-label foreignObject div,
+          .cluster-label foreignObject span {
+            font-weight: 700 !important;
+          }
+        `,
+      });
+
+      function updateZoomLabel() {
+        zoomLabel.textContent = `${Math.round(zoom * 100)}%`;
+        previewHost.style.transform = `scale(${zoom})`;
+      }
+
+      function applyClientLayout() {
+        isMobileClient = window.matchMedia("(max-width: 960px), (pointer: coarse)").matches;
+        workspace.classList.toggle("is-mobile-client", isMobileClient);
+
+        if (isMobileClient) {
+          leftStack.style.flexBasis = "";
+          previewPanel.style.flexBasis = "";
+        } else {
+          leftStack.style.flexBasis = `${splitRatio}%`;
+          previewPanel.style.flexBasis = `${100 - splitRatio}%`;
+        }
+      }
+
+      function parseErrorLocation(message) {
+        const lineMatch =
+          message.match(/line\s+(\d+)/i) ||
+          message.match(/on\s+line\s+(\d+)/i) ||
+          message.match(/Parse error on line\s+(\d+)/i);
+
+        return lineMatch ? Number(lineMatch[1]) : null;
+      }
+
+      function buildGuide(errorMessage) {
+        const line = parseErrorLocation(errorMessage);
+        const lineLabel = line ? `${line}번째 줄을 먼저 확인하세요.` : "오류 위치를 특정하지 못했습니다.";
+
+        if (/expect/i.test(errorMessage)) {
+          return `${lineLabel} Mermaid 문법 토큰이 빠졌거나 순서가 맞지 않습니다. 화살표, 대괄호, 중괄호 쌍을 점검하세요.`;
+        }
+
+        if (/lexical|unrecognized|unexpected/i.test(errorMessage)) {
+          return `${lineLabel} 지원되지 않는 문자나 잘못된 키워드가 들어갔을 가능성이 큽니다. 선언부와 특수문자를 확인하세요.`;
+        }
+
+        return `${lineLabel} 선언 키워드와 괄호/화살표 구문을 다시 확인하세요.`;
+      }
+
+      function updateGuide(errorMessage = "") {
+        if (!errorMessage) {
+          guideTitle.textContent = "Guide";
+          guideText.className = "editor-guide-copy";
+          guideText.textContent =
+            "현재 화면 구조를 유지한 단일 HTML 버전입니다. Mermaid 코드를 입력하면 오른쪽에서 바로 프리뷰를 렌더링합니다.";
+          return;
+        }
+
+        guideTitle.textContent = "Syntax Guide";
+        guideText.className = "editor-guide-copy editor-guide-error";
+        guideText.textContent = `${buildGuide(errorMessage)}\n\n${errorMessage}`;
+      }
+
+      async function renderDiagram() {
+        const code = codeInput.value;
+
+        try {
+          await mermaid.parse(code, { suppressErrors: false });
+          const id = `mermaid-${Date.now()}`;
+          const { svg } = await mermaid.render(id, code);
+          currentSvgText = svg;
+          previewHost.innerHTML = svg;
+          updateGuide("");
+          updateZoomLabel();
+        } catch (error) {
+          currentSvgText = "";
+          previewHost.innerHTML = "";
+          updateGuide(error instanceof Error ? error.message : "다이어그램을 렌더링하지 못했습니다.");
+        }
+      }
+
+      function downloadBlob(filename, blob) {
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = filename;
+        link.rel = "noopener";
+        document.body.appendChild(link);
+        link.click();
+
+        setTimeout(() => {
+          URL.revokeObjectURL(url);
+          link.remove();
+        }, 3000);
+      }
+
+      function fitSvgToContent(svgText) {
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(svgText, "image/svg+xml");
+        const svg = doc.documentElement;
+        const sandbox = document.createElement("div");
+
+        sandbox.style.position = "fixed";
+        sandbox.style.left = "-10000px";
+        sandbox.style.top = "-10000px";
+        sandbox.style.opacity = "0";
+        sandbox.style.pointerEvents = "none";
+
+        const measuredSvg = document.importNode(svg, true);
+        sandbox.appendChild(measuredSvg);
+        document.body.appendChild(sandbox);
+
+        try {
+          const bbox = measuredSvg.getBBox();
+          measuredSvg.setAttribute("viewBox", `${bbox.x} ${bbox.y} ${bbox.width} ${bbox.height}`);
+          measuredSvg.setAttribute("width", `${Math.max(1, Math.ceil(bbox.width))}`);
+          measuredSvg.setAttribute("height", `${Math.max(1, Math.ceil(bbox.height))}`);
+          return new XMLSerializer().serializeToString(measuredSvg);
+        } finally {
+          sandbox.remove();
+        }
+      }
+
+      function getSvgMetrics(svgText) {
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(svgText, "image/svg+xml");
+        const svg = doc.documentElement;
+        const viewBox = svg.getAttribute("viewBox");
+
+        if (viewBox) {
+          const parts = viewBox.split(/[\s,]+/).map(Number);
+          if (parts.length === 4 && parts.every(Number.isFinite)) {
+            return {
+              width: Math.max(1, Math.ceil(parts[2])),
+              height: Math.max(1, Math.ceil(parts[3])),
+            };
+          }
+        }
+
+        return { width: 1200, height: 800 };
+      }
+
+      async function downloadPng() {
+        if (!currentSvgText) {
+          return;
+        }
+
+        try {
+          const svgText = fitSvgToContent(currentSvgText);
+          const { width, height } = getSvgMetrics(svgText);
+          const image = new Image();
+
+          await new Promise((resolve, reject) => {
+            image.onload = resolve;
+            image.onerror = reject;
+            image.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgText)}`;
+          });
+
+          const canvas = document.createElement("canvas");
+          const scale = 2;
+          canvas.width = width * scale;
+          canvas.height = height * scale;
+
+          const ctx = canvas.getContext("2d");
+          if (!ctx) {
+            throw new Error("PNG 변환용 캔버스를 만들지 못했습니다.");
+          }
+
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          ctx.scale(scale, scale);
+          ctx.drawImage(image, 0, 0, width, height);
+
+          canvas.toBlob((blob) => {
+            if (!blob || blob.size === 0) {
+              updateGuide("PNG 생성 또는 다운로드에 실패했습니다.");
+              return;
+            }
+
+            downloadBlob("mermaid-diagram.png", blob);
+          }, "image/png");
+        } catch {
+          updateGuide("PNG 생성 또는 다운로드에 실패했습니다.");
+        }
+      }
+
+      function downloadMmd() {
+        downloadBlob("mermaid-diagram.mmd", new Blob([codeInput.value], { type: "text/plain;charset=utf-8" }));
+      }
+
+      function updateSplit(nextRatio) {
+        splitRatio = Math.min(80, Math.max(20, Number(nextRatio.toFixed(1))));
+        if (!isMobileClient) {
+          leftStack.style.flexBasis = `${splitRatio}%`;
+          previewPanel.style.flexBasis = `${100 - splitRatio}%`;
+        }
+      }
+
+      codeInput.addEventListener("input", renderDiagram);
+
+      document.getElementById("zoomIn").addEventListener("click", () => {
+        zoom = Math.min(5, Number((zoom + 0.1).toFixed(2)));
+        updateZoomLabel();
+      });
+
+      document.getElementById("zoomOut").addEventListener("click", () => {
+        zoom = Math.max(0.3, Number((zoom - 0.1).toFixed(2)));
+        updateZoomLabel();
+      });
+
+      previewCanvas.addEventListener("wheel", (event) => {
+        if (!(event.altKey || event.ctrlKey || event.metaKey)) {
+          return;
+        }
+
+        event.preventDefault();
+        zoom = Math.min(5, Math.max(0.3, Number((zoom + (event.deltaY < 0 ? 0.1 : -0.1)).toFixed(2))));
+        updateZoomLabel();
+      }, { passive: false });
+
+      document.getElementById("editorShell").addEventListener("wheel", (event) => {
+        if (!(event.altKey || event.ctrlKey || event.metaKey)) {
+          return;
+        }
+
+        event.preventDefault();
+        codeFontSize = Math.min(28, Math.max(9, codeFontSize + (event.deltaY < 0 ? 1 : -1)));
+        codeInput.style.fontSize = `${codeFontSize}px`;
+      }, { passive: false });
+
+      resizer.addEventListener("mousedown", () => {
+        resizing = true;
+        document.body.style.userSelect = "none";
+      });
+
+      window.addEventListener("mousemove", (event) => {
+        if (!resizing || isMobileClient) {
+          return;
+        }
+
+        const rect = workspace.getBoundingClientRect();
+        updateSplit(((event.clientX - rect.left) / rect.width) * 100);
+      });
+
+      window.addEventListener("mouseup", () => {
+        resizing = false;
+        document.body.style.userSelect = "";
+      });
+
+      document.getElementById("downloadPng").addEventListener("click", downloadPng);
+      document.getElementById("downloadMmd").addEventListener("click", downloadMmd);
+      window.addEventListener("resize", applyClientLayout);
+
+      codeInput.value = DEFAULT_CODE;
+      applyClientLayout();
+      renderDiagram();
+    </script>
+  </body>
+</html>

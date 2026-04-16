@@ -608,6 +608,7 @@ export default function App() {
   const [zoom, setZoom] = useState(1);
   const [codeFontSize, setCodeFontSize] = useState(11);
   const [splitRatio, setSplitRatio] = useState(30);
+  const [isMobileClient, setIsMobileClient] = useState(false);
   const [parseError, setParseError] = useState('');
   const [svgContent, setSvgContent] = useState('');
   const [downloadError, setDownloadError] = useState('');
@@ -625,6 +626,21 @@ export default function App() {
   function updateSplitRatio(nextRatio) {
     setSplitRatio(Math.min(80, Math.max(20, Number(nextRatio.toFixed(1)))));
   }
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia('(max-width: 960px), (pointer: coarse)');
+
+    function handleClientChange(event) {
+      setIsMobileClient(event.matches);
+    }
+
+    setIsMobileClient(mediaQuery.matches);
+    mediaQuery.addEventListener('change', handleClientChange);
+
+    return () => {
+      mediaQuery.removeEventListener('change', handleClientChange);
+    };
+  }, []);
 
   function handlePreviewSelectionApply(selection, nextText) {
     if (!selection) {
@@ -781,7 +797,7 @@ export default function App() {
 
   useEffect(() => {
     function handleResizeMove(event) {
-      if (!isResizingRef.current || !workspaceRef.current) {
+      if (isMobileClient || !isResizingRef.current || !workspaceRef.current) {
         return;
       }
 
@@ -807,7 +823,7 @@ export default function App() {
       window.removeEventListener('mouseup', handleResizeEnd);
       document.body.classList.remove('is-resizing-panels');
     };
-  }, []);
+  }, [isMobileClient]);
 
   async function handleDownloadPng() {
     if (!svgContent) {
@@ -883,8 +899,8 @@ export default function App() {
         <p className="eyebrow">Mermaid Live Editor</p>
       </header>
 
-      <section ref={workspaceRef} className="workspace">
-        <section className="left-stack" style={{ flexBasis: `${splitRatio}%` }}>
+      <section ref={workspaceRef} className={`workspace ${isMobileClient ? 'is-mobile-client' : ''}`}>
+        <section className="left-stack" style={isMobileClient ? undefined : { flexBasis: `${splitRatio}%` }}>
           <article className="panel editor-panel">
             <div className="panel-header">
               <h2>Code</h2>
@@ -953,15 +969,17 @@ export default function App() {
           </article>
         </section>
 
-        <div
-          className="panel-resizer"
-          onMouseDown={handleResizeStart}
-          role="separator"
-          aria-orientation="vertical"
-          aria-label="패널 너비 조절"
-        />
+        {!isMobileClient ? (
+          <div
+            className="panel-resizer"
+            onMouseDown={handleResizeStart}
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="패널 너비 조절"
+          />
+        ) : null}
 
-        <article className="panel preview-panel" style={{ flexBasis: `${100 - splitRatio}%` }}>
+        <article className="panel preview-panel" style={isMobileClient ? undefined : { flexBasis: `${100 - splitRatio}%` }}>
           <div className="panel-header">
             <h2>Preview</h2>
             <div className="preview-toolbar">
@@ -1013,8 +1031,17 @@ export default function App() {
             />
           </div>
           <div className="preview-footer">
-            <span>Zoom: Windows/Linux Alt + scroll, macOS Option + scroll</span>
-            <span>Fallback: Ctrl 또는 Cmd + scroll, 또는 +/- 버튼</span>
+            {isMobileClient ? (
+              <>
+                <span>모바일에서는 +/- 버튼으로 확대/축소합니다.</span>
+                <span>데스크톱에서는 Alt/Option, Ctrl/Cmd + scroll도 지원합니다.</span>
+              </>
+            ) : (
+              <>
+                <span>Zoom: Windows/Linux Alt + scroll, macOS Option + scroll</span>
+                <span>Fallback: Ctrl 또는 Cmd + scroll, 또는 +/- 버튼</span>
+              </>
+            )}
           </div>
         </article>
       </section>
