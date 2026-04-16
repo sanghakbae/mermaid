@@ -163,8 +163,8 @@ body.is-resizing-panels {
 }
 
 .workspace.is-mobile-client .guide-panel {
-  min-height: 160px;
-  max-height: 34vh;
+  min-height: 220px;
+  max-height: 42vh;
 }
 
 .panel {
@@ -186,11 +186,11 @@ body.is-resizing-panels {
 }
 
 .workspace.is-mobile-client .editor-panel {
-  min-height: 38vh;
+  min-height: 30vh;
 }
 
 .workspace.is-mobile-client .preview-panel {
-  min-height: 42vh;
+  min-height: 34vh;
 }
 
 .editor-panel {
@@ -515,16 +515,29 @@ body.is-resizing-panels {
 
 .workspace.is-mobile-client .preview-toolbar {
   gap: 6px;
+  flex-wrap: nowrap;
+  justify-content: flex-end;
 }
 
 .workspace.is-mobile-client .download-button,
 .workspace.is-mobile-client .zoom-button {
-  height: 36px;
-  font-size: 12px;
+  height: 26px;
+  font-size: 10px;
+  box-shadow: none;
 }
 
 .workspace.is-mobile-client .download-button {
-  padding: 0 12px;
+  padding: 0 8px;
+}
+
+.workspace.is-mobile-client .zoom-button {
+  min-width: 22px;
+  padding: 0 6px;
+}
+
+.workspace.is-mobile-client .preview-toolbar span {
+  white-space: nowrap;
+  flex: 0 0 auto;
 }
 
 .workspace.is-mobile-client .preview-canvas {
