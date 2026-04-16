@@ -1,0 +1,556 @@
+:root {
+  font-family: "KoPubDotum", "KoPub Dotum", -apple-system, BlinkMacSystemFont, sans-serif;
+  color: #111827;
+  background:
+    radial-gradient(circle at top, rgba(148, 163, 184, 0.14), transparent 30%),
+    linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%);
+  line-height: 1.5;
+  font-weight: 400;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  min-width: 100vw;
+  min-height: 100vh;
+}
+
+button,
+textarea,
+input {
+  font: inherit;
+}
+
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-height: 100vh;
+  padding: 12px;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  min-height: 36px;
+  margin-bottom: 12px;
+}
+
+.eyebrow {
+  margin: 0 0 8px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #475569;
+}
+
+.workspace {
+  flex: 1;
+  display: flex;
+  gap: 12px;
+  min-height: 0;
+}
+
+.left-stack {
+  display: flex;
+  flex-direction: column;
+  flex: 0 0 30%;
+  grid-template-rows: minmax(0, 1fr) auto;
+  gap: 12px;
+  min-height: 0;
+  min-width: 0;
+}
+
+.preview-panel {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.panel-resizer {
+  flex: 0 0 10px;
+  align-self: stretch;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.2);
+  cursor: col-resize;
+  transition: background 120ms ease-out;
+}
+
+.panel-resizer:hover {
+  background: rgba(100, 116, 139, 0.35);
+}
+
+body.is-resizing-panels {
+  cursor: col-resize;
+  user-select: none;
+}
+
+.editor-panel {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.guide-panel {
+  min-height: 148px;
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.78);
+  backdrop-filter: blur(18px);
+  box-shadow: 0 20px 60px rgba(15, 23, 42, 0.07);
+  overflow: hidden;
+}
+
+.panel-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 12px 16px 10px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.16);
+}
+
+.panel-header h2 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.panel-header span {
+  font-size: 0.82rem;
+  color: #64748b;
+}
+
+.panel-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.16);
+}
+
+.toolbar-button,
+.toolbar-select {
+  height: 30px;
+  padding: 0 10px;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  color: #334155;
+}
+
+.toolbar-button {
+  cursor: pointer;
+}
+
+.toolbar-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #475569;
+}
+
+.toolbar-toggle input {
+  margin: 0;
+}
+
+.preview-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.82rem;
+  color: #64748b;
+}
+
+.zoom-button {
+  width: 28px;
+  height: 28px;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.85);
+  color: #0f172a;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.zoom-button:hover {
+  background: #ffffff;
+}
+
+.download-button {
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid #334155;
+  border-radius: 999px;
+  background: #334155;
+  color: #ffffff;
+  cursor: pointer;
+  white-space: nowrap;
+  font-weight: 700;
+}
+
+.download-button:hover:not(:disabled) {
+  background: #1f2937;
+}
+
+.download-button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.editor {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  width: 100%;
+  border: 0;
+  resize: none;
+  padding: 24px;
+  background: transparent;
+  color: transparent;
+  caret-color: #0f172a;
+  font-family: "KoPubDotum", "KoPub Dotum", monospace;
+  font-size: 11px;
+  line-height: 1;
+  outline: none;
+  overflow: auto;
+  scrollbar-gutter: auto;
+}
+
+.editor::selection {
+  background: rgba(148, 163, 184, 0.28);
+}
+
+.editor-shell {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+
+.editor-highlight {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  padding: 24px;
+  overflow: hidden;
+  pointer-events: none;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: "KoPubDotum", "KoPub Dotum", monospace;
+  font-size: 11px;
+  line-height: 1;
+  color: #0f172a;
+}
+
+.editor-line {
+  display: block;
+  min-height: 11px;
+}
+
+.editor-line-error {
+  background: rgba(254, 226, 226, 0.85);
+  border-radius: 6px;
+}
+
+.token-comment {
+  color: #94a3b8;
+}
+
+.token-directive {
+  color: #2563eb;
+}
+
+.token-keyword {
+  color: #0f766e;
+}
+
+.token-string {
+  color: #b45309;
+}
+
+.token-arrow,
+.token-operator {
+  color: #7c3aed;
+}
+
+.token-bracket {
+  color: #475569;
+}
+
+.token-number {
+  color: #be123c;
+}
+
+.editor-line-error .token,
+.editor-line-error {
+  color: #b91c1c;
+}
+
+.editor-guide {
+  flex: 1;
+  padding: 12px 16px 14px;
+  background: rgba(248, 250, 252, 0.55);
+}
+
+.editor-guide-error {
+  background: rgba(254, 242, 242, 0.72);
+}
+
+.editor-guide-label {
+  margin: 0 0 6px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
+.editor-guide-copy {
+  margin: 0;
+  font-size: 11px;
+  color: #475569;
+}
+
+.editor-guide-error .editor-guide-label,
+.editor-guide-error .editor-guide-copy {
+  color: #991b1b;
+}
+
+.editor-guide-error-text {
+  margin: 10px 0 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 11px;
+  color: #7f1d1d;
+}
+
+.preview-canvas {
+  flex: 1;
+  min-height: 0;
+  padding: 16px;
+  overflow: auto;
+}
+
+.monaco-editor .margin-view-overlays .line-numbers {
+  text-align: center !important;
+}
+
+.monaco-editor .margin {
+  min-width: 20px !important;
+}
+
+.monaco-editor .margin-view-overlays .line-numbers {
+  width: 18px !important;
+  left: 0 !important;
+  padding-right: 0 !important;
+}
+
+.preview-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 16px 12px;
+  border-top: 1px solid rgba(148, 163, 184, 0.16);
+  font-size: 11px;
+  color: #64748b;
+}
+
+.mermaid-output,
+.preview-state {
+  display: grid;
+  place-items: center;
+  min-height: 100%;
+  padding: 20px;
+  border-radius: 18px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.8), rgba(248, 250, 252, 0.96));
+  border: 1px solid rgba(148, 163, 184, 0.18);
+}
+
+.mermaid-scale {
+  transform-origin: center center;
+  transition: transform 120ms ease-out;
+}
+
+.interactive-preview {
+  position: relative;
+}
+
+.preview-selected-target {
+  cursor: pointer;
+}
+
+.preview-selected-target :is(rect, path, polygon, circle, ellipse) {
+  stroke: #dc2626 !important;
+  stroke-width: 2px !important;
+}
+
+.preview-selected-target rect.label-container,
+.preview-selected-target .labelBkg {
+  fill: rgba(254, 226, 226, 0.95) !important;
+  stroke: #dc2626 !important;
+}
+
+.preview-selected-target text,
+.preview-selected-target tspan,
+.preview-selected-target foreignObject,
+.preview-selected-target span {
+  fill: #991b1b !important;
+  color: #991b1b !important;
+  font-weight: 700;
+}
+
+.preview-modal {
+  position: absolute;
+  z-index: 20;
+  width: min(420px, calc(100% - 32px));
+  padding: 16px;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 24px 64px rgba(15, 23, 42, 0.18);
+}
+
+.preview-modal-title {
+  margin: 0 0 10px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #334155;
+}
+
+.preview-textarea {
+  width: 100%;
+  min-height: 96px;
+  padding: 10px 12px;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  border-radius: 12px;
+  resize: vertical;
+  outline: none;
+  font-family: "KoPubDotum", "KoPub Dotum", monospace;
+  font-size: 12px;
+  line-height: 1.4;
+  color: #0f172a;
+  background: #ffffff;
+}
+
+.preview-text-editor-actions {
+  display: flex;
+  justify-content: end;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.preview-edit-button {
+  height: 30px;
+  padding: 0 12px;
+  border: 1px solid #334155;
+  border-radius: 999px;
+  background: #334155;
+  color: #ffffff;
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 12px;
+}
+
+.preview-edit-button.secondary {
+  border-color: rgba(148, 163, 184, 0.32);
+  background: #ffffff;
+  color: #334155;
+}
+
+.mermaid-output svg {
+  max-width: 100%;
+  height: auto;
+}
+
+.preview-state {
+  color: #475569;
+}
+
+.preview-state-error {
+  place-items: start;
+  color: #991b1b;
+  background: rgba(254, 242, 242, 0.8);
+  border-color: rgba(248, 113, 113, 0.24);
+}
+
+.preview-state-label {
+  margin: 0 0 12px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.preview-state pre {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: "JetBrains Mono", "SFMono-Regular", monospace;
+  font-size: 0.88rem;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (max-width: 960px) {
+  .app-shell {
+    padding: 8px;
+  }
+
+  .topbar {
+    margin-bottom: 8px;
+  }
+
+  .workspace {
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .left-stack {
+    flex: 1 1 auto !important;
+  }
+
+  .preview-panel {
+    flex: 1 1 auto !important;
+  }
+
+  .panel-resizer {
+    display: none;
+  }
+
+  .panel {
+    min-height: min(420px, 48vh);
+  }
+
+  .preview-footer {
+    flex-direction: column;
+  }
+}
