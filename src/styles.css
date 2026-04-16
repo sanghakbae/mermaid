@@ -1,10 +1,11 @@
 :root {
   font-family: "KoPubDotum", "KoPub Dotum", -apple-system, BlinkMacSystemFont, sans-serif;
-  color: #142033;
+  color: #201d18;
   background:
-    radial-gradient(circle at 0% 0%, rgba(67, 97, 238, 0.08), transparent 28%),
-    radial-gradient(circle at 100% 0%, rgba(0, 163, 108, 0.08), transparent 22%),
-    linear-gradient(180deg, #f4f7fb 0%, #ecf1f7 48%, #e8edf4 100%);
+    radial-gradient(circle at 12% 10%, rgba(226, 139, 115, 0.16), transparent 20%),
+    radial-gradient(circle at 88% 8%, rgba(221, 155, 38, 0.12), transparent 18%),
+    radial-gradient(circle at 80% 76%, rgba(152, 146, 108, 0.1), transparent 22%),
+    linear-gradient(180deg, #f4efe8 0%, #ede5db 52%, #e8dfd3 100%);
   line-height: 1.5;
   font-weight: 400;
   text-rendering: optimizeLegibility;
@@ -28,8 +29,12 @@ body,
 body {
   min-width: 100vw;
   min-height: 100vh;
-  color: #142033;
+  color: #201d18;
   overflow: hidden;
+  background:
+    linear-gradient(transparent 0, transparent calc(100% - 1px), rgba(35, 31, 24, 0.04) calc(100% - 1px)),
+    linear-gradient(90deg, transparent 0, transparent calc(100% - 1px), rgba(35, 31, 24, 0.04) calc(100% - 1px));
+  background-size: 32px 32px;
 }
 
 button,
@@ -43,15 +48,27 @@ input {
   flex-direction: column;
   width: 100%;
   height: 100vh;
-  padding: 14px;
+  padding: 20px;
   overflow: hidden;
 }
 
 .topbar {
   display: flex;
   align-items: center;
-  min-height: 44px;
-  margin-bottom: 14px;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 18px;
+}
+
+.topbar-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.topbar-left .toolbar-field {
+  margin-left: 99px;
 }
 
 .eyebrow {
@@ -60,25 +77,62 @@ input {
   gap: 10px;
   margin: 0;
   padding: 8px 14px;
-  border: 1px solid rgba(148, 163, 184, 0.24);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.7);
-  box-shadow: 0 8px 30px rgba(15, 23, 42, 0.06);
+  border: 1px solid rgba(87, 71, 54, 0.14);
+  border-radius: 500px;
+  background: rgba(255, 250, 244, 0.82);
+  box-shadow: 0 10px 26px rgba(38, 30, 22, 0.08);
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: #324256;
-  backdrop-filter: blur(16px);
+  color: #5d4d3b;
+  backdrop-filter: blur(18px);
 }
 
 .eyebrow::before {
   content: "";
   width: 8px;
   height: 8px;
-  border-radius: 999px;
-  background: linear-gradient(135deg, #4f46e5, #0ea5a4);
-  box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.1);
+  border-radius: 500px;
+  background: linear-gradient(135deg, #e27867, #dd9b26);
+  box-shadow: 0 0 0 4px rgba(226, 120, 103, 0.12);
+}
+
+.topbar-tools {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.toolbar-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+  height: 32px;
+  border: 1px solid rgba(87, 71, 54, 0.16);
+  border-radius: 500px;
+  background: rgba(255, 250, 244, 0.84);
+  box-shadow: 0 10px 22px rgba(38, 30, 22, 0.06);
+}
+
+.toolbar-field span {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #7c6a55;
+}
+
+.toolbar-field-inline {
+  height: 28px;
+  padding: 0 8px;
+}
+
+.toolbar-field-inline span {
+  font-size: 10px;
 }
 
 .workspace {
@@ -123,7 +177,7 @@ input {
   position: relative;
   flex: 0 0 12px;
   align-self: stretch;
-  border-radius: 999px;
+  border-radius: 500px;
   background: transparent;
   cursor: col-resize;
   transition: transform 120ms ease-out;
@@ -137,7 +191,7 @@ input {
   left: 50%;
   width: 4px;
   transform: translateX(-50%);
-  border-radius: 999px;
+  border-radius: 500px;
   background: linear-gradient(180deg, rgba(148, 163, 184, 0.18), rgba(100, 116, 139, 0.38), rgba(148, 163, 184, 0.18));
 }
 
@@ -172,7 +226,7 @@ body.is-resizing-panels {
   flex-direction: column;
   min-height: 0;
   border: 1px solid rgba(148, 163, 184, 0.22);
-  border-radius: 28px;
+  border-radius: 14px;
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(249, 251, 253, 0.86));
   backdrop-filter: blur(20px);
   box-shadow:
@@ -247,13 +301,26 @@ body.is-resizing-panels {
   height: 30px;
   padding: 0 10px;
   border: 1px solid rgba(148, 163, 184, 0.24);
-  border-radius: 999px;
+  border-radius: 250px;
   background: rgba(255, 255, 255, 0.92);
   color: #334155;
 }
 
 .toolbar-button {
   cursor: pointer;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.05);
+  font-size: 12px;
+}
+
+.toolbar-button.is-active,
+.download-button.is-active {
+  background: linear-gradient(180deg, #0f766e, #115e59);
+  border-color: #0f766e;
+}
+
+.toolbar-button:hover:not(:disabled),
+.download-button.is-active:hover:not(:disabled) {
+  transform: translateY(-1px);
 }
 
 .toolbar-toggle {
@@ -283,7 +350,7 @@ body.is-resizing-panels {
   height: 30px;
   padding: 0 10px;
   border: 1px solid rgba(148, 163, 184, 0.22);
-  border-radius: 999px;
+  border-radius: 250px;
   background: rgba(255, 255, 255, 0.94);
   color: #213045;
   cursor: pointer;
@@ -301,7 +368,7 @@ body.is-resizing-panels {
   height: 32px;
   padding: 0 14px;
   border: 1px solid #1d293d;
-  border-radius: 999px;
+  border-radius: 250px;
   background: linear-gradient(180deg, #334155, #1f2937);
   color: #ffffff;
   cursor: pointer;
@@ -314,6 +381,20 @@ body.is-resizing-panels {
 .download-button:hover:not(:disabled) {
   background: linear-gradient(180deg, #27364a, #182132);
   transform: translateY(-1px);
+}
+
+.download-button.is-active {
+  box-shadow: 0 10px 24px rgba(17, 94, 89, 0.18);
+}
+
+.compare-toggle.is-active {
+  background: linear-gradient(180deg, #0f766e, #115e59);
+  border-color: #0f766e;
+  box-shadow: 0 10px 24px rgba(17, 94, 89, 0.18);
+}
+
+.compare-toggle.is-active:hover:not(:disabled) {
+  background: linear-gradient(180deg, #0e6a63, #0f5f59);
 }
 
 .download-button:disabled {
@@ -333,7 +414,7 @@ body.is-resizing-panels {
   color: transparent;
   caret-color: #0f172a;
   font-family: "KoPubDotum", "KoPub Dotum", monospace;
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1;
   outline: none;
   overflow: auto;
@@ -362,19 +443,19 @@ body.is-resizing-panels {
   white-space: pre-wrap;
   word-break: break-word;
   font-family: "KoPubDotum", "KoPub Dotum", monospace;
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1;
   color: #0f172a;
 }
 
 .editor-line {
   display: block;
-  min-height: 11px;
+  min-height: 12px;
 }
 
 .editor-line-error {
   background: rgba(254, 226, 226, 0.85);
-  border-radius: 6px;
+  border-radius: 3px;
 }
 
 .token-comment {
@@ -452,6 +533,20 @@ body.is-resizing-panels {
   color: #8f1f1f;
 }
 
+.guide-action {
+  margin-top: 12px;
+  height: 30px;
+  padding: 0 12px;
+  border: 1px solid rgba(153, 27, 27, 0.22);
+  border-radius: 250px;
+  background: rgba(255, 255, 255, 0.9);
+  color: #991b1b;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+  box-shadow: 0 8px 18px rgba(153, 27, 27, 0.06);
+}
+
 .preview-canvas {
   flex: 1;
   min-height: 0;
@@ -459,7 +554,34 @@ body.is-resizing-panels {
   overflow: auto;
   background:
     radial-gradient(circle at top, rgba(255, 255, 255, 0.86), transparent 55%),
-    linear-gradient(180deg, rgba(246, 249, 252, 0.9), rgba(240, 245, 249, 0.92));
+  linear-gradient(180deg, rgba(246, 249, 252, 0.9), rgba(240, 245, 249, 0.92));
+}
+
+.preview-compare-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 14px;
+  min-height: 100%;
+}
+
+.preview-compare-pane {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.preview-compare-label {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
+.preview-compare-pane .mermaid-output {
+  flex: 1;
+  min-height: 0;
 }
 
 .monaco-editor .margin-view-overlays .line-numbers {
@@ -490,6 +612,10 @@ body.is-resizing-panels {
 .workspace.is-mobile-client .preview-footer {
   flex-direction: column;
   gap: 6px;
+}
+
+.workspace.is-mobile-client .hero-title {
+  font-size: 24px;
 }
 
 .workspace.is-mobile-client .panel-header {
@@ -523,6 +649,26 @@ body.is-resizing-panels {
   font-size: 10px;
 }
 
+.workspace.is-mobile-client .topbar {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.workspace.is-mobile-client .topbar-tools {
+  justify-content: flex-start;
+}
+
+.workspace.is-mobile-client .toolbar-field,
+.workspace.is-mobile-client .toolbar-button {
+  height: 26px;
+  font-size: 10px;
+}
+
+.workspace.is-mobile-client .toolbar-field-inline {
+  height: 24px;
+  padding: 0 6px;
+}
+
 .workspace.is-mobile-client .download-button,
 .workspace.is-mobile-client .zoom-button {
   height: 24px;
@@ -532,7 +678,7 @@ body.is-resizing-panels {
 
 .workspace.is-mobile-client .download-button {
   padding: 0 7px;
-  border-radius: 999px;
+  border-radius: 250px;
 }
 
 .workspace.is-mobile-client .zoom-button {
@@ -549,10 +695,14 @@ body.is-resizing-panels {
   padding: 10px;
 }
 
+.workspace.is-mobile-client .preview-compare-grid {
+  grid-template-columns: 1fr;
+}
+
 .workspace.is-mobile-client .mermaid-output,
 .workspace.is-mobile-client .preview-state {
   padding: 16px;
-  border-radius: 18px;
+  border-radius: 9px;
 }
 
 .mermaid-output,
@@ -561,7 +711,7 @@ body.is-resizing-panels {
   place-items: center;
   min-height: 100%;
   padding: 24px;
-  border-radius: 22px;
+  border-radius: 11px;
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(248, 250, 252, 0.98));
   border: 1px solid rgba(148, 163, 184, 0.16);
@@ -609,7 +759,7 @@ body.is-resizing-panels {
   width: min(420px, calc(100% - 32px));
   padding: 16px;
   border: 1px solid rgba(148, 163, 184, 0.24);
-  border-radius: 18px;
+  border-radius: 9px;
   background: rgba(255, 255, 255, 0.98);
   box-shadow:
     0 24px 64px rgba(15, 23, 42, 0.18),
@@ -628,7 +778,7 @@ body.is-resizing-panels {
   min-height: 96px;
   padding: 12px 14px;
   border: 1px solid rgba(148, 163, 184, 0.3);
-  border-radius: 12px;
+  border-radius: 6px;
   resize: vertical;
   outline: none;
   font-family: "KoPubDotum", "KoPub Dotum", monospace;
@@ -650,7 +800,7 @@ body.is-resizing-panels {
   height: 30px;
   padding: 0 12px;
   border: 1px solid #1d293d;
-  border-radius: 999px;
+  border-radius: 250px;
   background: linear-gradient(180deg, #334155, #1f2937);
   color: #ffffff;
   cursor: pointer;

@@ -9,6 +9,114 @@ const DEFAULT_CODE = `flowchart TD
     C --> E[오른쪽 프리뷰 갱신]`;
 
 const MERMAID_LANGUAGE_ID = 'mermaid';
+const APP_TITLE = '머메이드 라이브 에디터';
+const EXAMPLES = [
+  {
+    label: '흐름도',
+    value: `flowchart TD
+    A[시작] --> B{판단}
+    B -->|예| C[결과]
+    B -->|아니오| D[재시도]
+    D --> A`,
+  },
+  {
+    label: '순서도',
+    value: `sequenceDiagram
+    participant 사용자
+    participant 앱
+    사용자->>앱: 요청
+    앱-->>사용자: 응답`,
+  },
+  {
+    label: '클래스',
+    value: `classDiagram
+    class 동물 {
+      +String 이름
+      +소리내기()
+    }
+    동물 <|-- 개`,
+  },
+  {
+    label: '상태',
+    value: `stateDiagram-v2
+    [*] --> 대기
+    대기 --> 실행: 시작
+    실행 --> [*]: 종료`,
+  },
+  {
+    label: 'ER',
+    value: `erDiagram
+    고객 ||--o{ 주문 : 요청
+    주문 ||--|{ 주문항목 : 포함`,
+  },
+  {
+    label: '간트',
+    value: `gantt
+    title 프로젝트 계획
+    dateFormat  YYYY-MM-DD
+    section 디자인
+    시안          :done,    des1, 2026-04-01, 3d
+    제작          :active,  des2, 2026-04-04, 5d`,
+  },
+  {
+    label: '마인드맵',
+    value: `mindmap
+  root((제품))
+    디자인
+      UI
+      UX
+    개발
+      프런트엔드
+      백엔드`,
+  },
+  {
+    label: '여정',
+    value: `journey
+    title 사용자 여정
+    section 발견
+      검색: 5: 사용자
+      비교: 3: 사용자
+    section 결정
+      구매: 1: 사용자`,
+  },
+  {
+    label: '파이',
+    value: `pie
+    title 시간 배분
+    "계획" : 30
+    "디자인" : 20
+    "코딩" : 50`,
+  },
+  {
+    label: 'Git',
+    value: `gitGraph
+    commit
+    branch 개발
+    checkout 개발
+    commit
+    checkout main
+    merge 개발`,
+  },
+  {
+    label: '타임라인',
+    value: `timeline
+    title 출시 계획
+    2026-04-01 : 시작
+    2026-04-10 : 시제품
+    2026-04-20 : 출시`,
+  },
+  {
+    label: '칸반',
+    value: `kanban
+    할 일
+      [아이디어]
+      [명세]
+    진행 중
+      [구현]
+    완료
+      [배포]`,
+  },
+];
 
 mermaid.initialize({
   startOnLoad: false,
@@ -82,6 +190,266 @@ function buildErrorGuide(errorMessage, location) {
   }
 
   return `${lineLabel} 선언 키워드와 괄호/화살표 구문을 다시 확인하세요.`;
+}
+
+function detectDiagramType(code) {
+  const normalized = code.trimStart();
+
+  const patterns = [
+    ['flowchart', /^flowchart\b|^graph\b/i],
+    ['sequenceDiagram', /^sequenceDiagram\b/i],
+    ['classDiagram', /^classDiagram\b/i],
+    ['stateDiagram', /^stateDiagram(?:-v2)?\b/i],
+    ['erDiagram', /^erDiagram\b/i],
+    ['gantt', /^gantt\b/i],
+    ['mindmap', /^mindmap\b/i],
+    ['journey', /^journey\b/i],
+    ['pie', /^pie\b/i],
+    ['timeline', /^timeline\b/i],
+    ['gitGraph', /^gitGraph\b/i],
+    ['quadrantChart', /^quadrantChart\b/i],
+    ['requirementDiagram', /^requirementDiagram\b/i],
+    ['xychart', /^xychart-beta\b/i],
+    ['architecture', /^architecture\b/i],
+    ['kanban', /^kanban\b/i],
+    ['block', /^block-beta\b/i],
+    ['packet', /^packet-beta\b/i],
+    ['radar', /^radar-beta\b/i],
+    ['sankey', /^sankey-beta\b/i],
+  ];
+
+  for (const [type, pattern] of patterns) {
+    if (pattern.test(normalized)) {
+      return type;
+    }
+  }
+
+  return 'unknown';
+}
+
+function getGuideCopy(diagramType) {
+  if (diagramType === 'unknown') {
+    return '문법을 자동 감지하지 못했습니다. 첫 줄의 다이어그램 선언을 확인하거나 예제를 불러오세요.';
+  }
+
+  return `현재 감지된 타입: ${diagramType}`;
+}
+
+function toBase64Url(text) {
+  const bytes = new TextEncoder().encode(text);
+  let binary = '';
+
+  for (const byte of bytes) {
+    binary += String.fromCharCode(byte);
+  }
+
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+}
+
+function fromBase64Url(value) {
+  const normalized = value.replace(/-/g, '+').replace(/_/g, '/');
+  const padded = normalized + '='.repeat((4 - (normalized.length % 4)) % 4);
+  const binary = atob(padded);
+  const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
+  return new TextDecoder().decode(bytes);
+}
+
+function normalizeMermaidSpacing(line) {
+  return line
+    .replace(/\s*-->\s*/g, ' --> ')
+    .replace(/\s*-.->\s*/g, ' -.-> ')
+    .replace(/\s*==>\s*/g, ' ==> ')
+    .replace(/\s*\|\s*/g, '|')
+    .replace(/\s*:\s*/g, ' : ')
+    .replace(/\s+/g, ' ')
+    .replace(/\s+\|/g, ' |')
+    .replace(/\|\s+/g, '|')
+    .trim();
+}
+
+function formatFlowchartCode(code) {
+  const lines = code.replace(/\r\n/g, '\n').split('\n');
+  const formatted = [];
+  let indent = 0;
+
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+
+    if (!line) {
+      if (formatted.at(-1) !== '') {
+        formatted.push('');
+      }
+      continue;
+    }
+
+    const normalized = normalizeMermaidSpacing(line);
+    const lower = normalized.toLowerCase();
+    const dedentBefore = lower === 'end' || lower === 'else' || lower === 'and';
+    const indentAfter = /^subgraph\b|^loop\b|^alt\b|^opt\b|^par\b|^critical\b|^rect\b|^case\b|^switch\b|^box\b|^state\b/i.test(
+      normalized,
+    );
+
+    if (dedentBefore) {
+      indent = Math.max(0, indent - 1);
+    }
+
+    formatted.push(`${'  '.repeat(indent)}${normalized}`);
+
+    if (indentAfter) {
+      indent += 1;
+    }
+  }
+
+  return formatted.join('\n').trim();
+}
+
+function formatSequenceCode(code) {
+  const lines = code.replace(/\r\n/g, '\n').split('\n');
+  const formatted = [];
+  let indent = 0;
+
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+
+    if (!line) {
+      if (formatted.at(-1) !== '') {
+        formatted.push('');
+      }
+      continue;
+    }
+
+    const normalized = line
+      .replace(/\s*->>\s*/g, ' ->> ')
+      .replace(/\s*-->>\s*/g, ' -->> ')
+      .replace(/\s*->\s*/g, ' -> ')
+      .replace(/\s*-->\s*/g, ' --> ')
+      .replace(/\s*:\s*/g, ' : ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    if (/^(autonumber|loop\b|alt\b|opt\b|par\b|critical\b|rect\b|note\b|participant\b|actor\b|box\b)/i.test(normalized)) {
+      formatted.push(`${'  '.repeat(indent)}${normalized}`);
+      if (/^(loop|alt|opt|par|critical|rect|box)\b/i.test(normalized)) {
+        indent += 1;
+      }
+      continue;
+    }
+
+    if (/^(end|else\b|and\b)$/i.test(normalized)) {
+      indent = Math.max(0, indent - 1);
+    }
+
+    formatted.push(`${'  '.repeat(indent)}${normalized}`);
+  }
+
+  return formatted.join('\n').trim();
+}
+
+function formatBlockCode(code) {
+  const lines = code.replace(/\r\n/g, '\n').split('\n');
+  const formatted = [];
+  let indent = 0;
+
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+
+    if (!line) {
+      if (formatted.at(-1) !== '') {
+        formatted.push('');
+      }
+      continue;
+    }
+
+    const normalized = normalizeMermaidSpacing(line);
+    const lower = normalized.toLowerCase();
+
+    if (lower === 'end' || lower === 'else' || lower === 'and') {
+      indent = Math.max(0, indent - 1);
+    }
+
+    formatted.push(`${'  '.repeat(indent)}${normalized}`);
+
+    if (
+      /^(subgraph|loop|alt|opt|par|critical|rect|case|switch|box|state)\b/i.test(normalized) ||
+      /{$/.test(normalized)
+    ) {
+      indent += 1;
+    }
+  }
+
+  return formatted.join('\n').trim();
+}
+
+function formatMermaidCode(code) {
+  const diagramType = detectDiagramType(code);
+
+  switch (diagramType) {
+    case 'flowchart':
+      return formatFlowchartCode(code);
+    case 'sequenceDiagram':
+      return formatSequenceCode(code);
+    case 'classDiagram':
+    case 'stateDiagram':
+    case 'architecture':
+    case 'kanban':
+      return formatBlockCode(code);
+    case 'gantt':
+    case 'journey':
+    case 'pie':
+    case 'timeline':
+    case 'gitGraph':
+    case 'mindmap':
+    case 'erDiagram':
+    case 'quadrantChart':
+    case 'requirementDiagram':
+    case 'xychart':
+    case 'block':
+    case 'packet':
+    case 'radar':
+    case 'sankey':
+      return code.replace(/\r\n/g, '\n').split('\n').map((line) => line.trimEnd()).join('\n').trim();
+    default:
+      return formatBlockCode(code);
+  }
+}
+
+async function createPngBlobFromSvg(svgContent) {
+  const transparentSvg = fitSvgToContent(makeTransparentSvg(svgContent));
+  const { width, height } = getSvgExportMetrics(transparentSvg);
+  const svgUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(transparentSvg)}`;
+  const image = new Image();
+
+  await new Promise((resolve, reject) => {
+    image.onload = resolve;
+    image.onerror = reject;
+    image.src = svgUrl;
+  });
+
+  const scale = 2;
+  const canvas = document.createElement('canvas');
+  canvas.width = width * scale;
+  canvas.height = height * scale;
+  const ctx = canvas.getContext('2d');
+
+  if (!ctx) {
+    throw new Error('PNG 변환용 캔버스를 만들지 못했습니다.');
+  }
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.scale(scale, scale);
+  ctx.drawImage(image, 0, 0, width, height);
+
+  const pngBlob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+
+  if (!pngBlob) {
+    throw new Error('PNG 변환에 실패했습니다.');
+  }
+
+  if (pngBlob.size === 0) {
+    throw new Error('PNG 파일이 비어 있습니다.');
+  }
+
+  return pngBlob;
 }
 
 function makeTransparentSvg(svgText) {
@@ -202,6 +570,45 @@ async function saveBlob(target, blob, filename) {
     URL.revokeObjectURL(url);
     document.body.removeChild(link);
   }, 3000);
+}
+
+function makeClipboardItem(blob) {
+  if (typeof window === 'undefined' || typeof window.ClipboardItem === 'undefined') {
+    return null;
+  }
+
+  return new ClipboardItem({ [blob.type]: blob });
+}
+
+function readSharedCodeFromLocation() {
+  if (typeof window === 'undefined') {
+    return '';
+  }
+
+  const url = new URL(window.location.href);
+  const hashValue = url.hash.replace(/^#c=/, '');
+  const queryValue = url.searchParams.get('code');
+
+  if (hashValue) {
+    try {
+      return fromBase64Url(hashValue);
+    } catch {
+      return '';
+    }
+  }
+
+  if (queryValue) {
+    return queryValue;
+  }
+
+  return '';
+}
+
+function writeSharedCodeToLocation(code) {
+  const url = new URL(window.location.href);
+  url.hash = `c=${toBase64Url(code)}`;
+  url.searchParams.delete('code');
+  window.history.replaceState({}, '', url.toString());
 }
 
 function collectEditableGroups(root) {
@@ -550,7 +957,7 @@ function MermaidPreview({ code, zoom, onErrorChange, onSvgChange, onApplySelecti
   if (!svg) {
     return (
       <div className="preview-state">
-        <p className="preview-state-label">Preview</p>
+        <p className="preview-state-label">미리보기</p>
       </div>
     );
   }
@@ -572,7 +979,7 @@ function MermaidPreview({ code, zoom, onErrorChange, onSvgChange, onApplySelecti
           }}
           onClick={(event) => event.stopPropagation()}
         >
-          <p className="preview-modal-title">Edit Label</p>
+          <p className="preview-modal-title">라벨 수정</p>
           <textarea
             className="preview-textarea"
             value={draftText}
@@ -604,28 +1011,58 @@ function MermaidPreview({ code, zoom, onErrorChange, onSvgChange, onApplySelecti
 }
 
 export default function App() {
-  const [code, setCode] = useState(DEFAULT_CODE);
+  const [code, setCode] = useState(() => readSharedCodeFromLocation() || DEFAULT_CODE);
   const [zoom, setZoom] = useState(1);
-  const [codeFontSize, setCodeFontSize] = useState(11);
+  const [codeFontSize, setCodeFontSize] = useState(12);
   const [splitRatio, setSplitRatio] = useState(30);
   const [isMobileClient, setIsMobileClient] = useState(false);
   const [parseError, setParseError] = useState('');
   const [svgContent, setSvgContent] = useState('');
   const [downloadError, setDownloadError] = useState('');
+  const [shareError, setShareError] = useState('');
+  const [selectedExample, setSelectedExample] = useState('custom');
+  const [frozenSvgContent, setFrozenSvgContent] = useState('');
+  const [compareMode, setCompareMode] = useState(false);
   const workspaceRef = useRef(null);
   const isResizingRef = useRef(false);
   const editorRef = useRef(null);
   const monacoRef = useRef(null);
   const decorationIdsRef = useRef([]);
+  const hasMountedRef = useRef(false);
   const errorLocation = useMemo(() => parseErrorLocation(parseError), [parseError]);
+  const diagramType = useMemo(() => detectDiagramType(code), [code]);
+  const guideCopy = useMemo(() => getGuideCopy(diagramType), [diagramType]);
   const errorGuide = useMemo(
     () => buildErrorGuide(parseError, errorLocation),
     [errorLocation, parseError],
   );
+  const shareLink = useMemo(() => {
+    if (typeof window === 'undefined') {
+      return '';
+    }
+
+    const url = new URL(window.location.href);
+    url.hash = `c=${toBase64Url(code)}`;
+    url.searchParams.delete('code');
+    return url.toString();
+  }, [code]);
 
   function updateSplitRatio(nextRatio) {
     setSplitRatio(Math.min(80, Math.max(20, Number(nextRatio.toFixed(1)))));
   }
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    if (!hasMountedRef.current) {
+      hasMountedRef.current = true;
+      return;
+    }
+
+    writeSharedCodeToLocation(code);
+  }, [code]);
 
   useEffect(() => {
     const mediaQuery = window.matchMedia('(max-width: 960px), (pointer: coarse)');
@@ -652,6 +1089,7 @@ export default function App() {
 
       if (nextCode !== code) {
         setCode(nextCode);
+        setSelectedExample('custom');
         return true;
       }
     }
@@ -661,11 +1099,51 @@ export default function App() {
 
       if (nextCode !== code) {
         setCode(nextCode);
+        setSelectedExample('custom');
         return true;
       }
     }
 
     return false;
+  }
+
+  function handleExampleChange(nextValue) {
+    setSelectedExample(nextValue);
+
+    if (nextValue === 'custom') {
+      return;
+    }
+
+    const example = EXAMPLES.find((item) => item.label === nextValue);
+
+    if (example) {
+      setCode(example.value);
+      setShareError('');
+    }
+  }
+
+  function handleFormatCode() {
+    setCode((currentCode) => formatMermaidCode(currentCode));
+    setSelectedExample('custom');
+  }
+
+  async function handleShareLink() {
+    try {
+      await navigator.clipboard.writeText(shareLink);
+      setShareError('');
+    } catch {
+      setShareError('공유 링크 복사에 실패했습니다. 브라우저 권한을 확인하세요.');
+    }
+  }
+
+  function handleJumpToError() {
+    if (!errorLocation.line || !editorRef.current) {
+      return;
+    }
+
+    editorRef.current.revealLineInCenter(errorLocation.line);
+    editorRef.current.setPosition({ lineNumber: errorLocation.line, column: errorLocation.column });
+    editorRef.current.focus();
   }
 
   useEffect(() => {
@@ -832,41 +1310,7 @@ export default function App() {
 
     try {
       const saveTarget = createDownloadTarget('mermaid-diagram.png');
-      const transparentSvg = fitSvgToContent(makeTransparentSvg(svgContent));
-      const { width, height } = getSvgExportMetrics(transparentSvg);
-      const svgUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(transparentSvg)}`;
-      const image = new Image();
-
-      await new Promise((resolve, reject) => {
-        image.onload = resolve;
-        image.onerror = reject;
-        image.src = svgUrl;
-      });
-
-      const scale = 2;
-      const canvas = document.createElement('canvas');
-      canvas.width = width * scale;
-      canvas.height = height * scale;
-      const ctx = canvas.getContext('2d');
-
-      if (!ctx) {
-        throw new Error('PNG 변환용 캔버스를 만들지 못했습니다.');
-      }
-
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.scale(scale, scale);
-      ctx.drawImage(image, 0, 0, width, height);
-
-      const pngBlob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
-
-      if (!pngBlob) {
-        throw new Error('PNG 변환에 실패했습니다.');
-      }
-
-      if (pngBlob.size === 0) {
-        throw new Error('PNG 파일이 비어 있습니다.');
-      }
-
+      const pngBlob = await createPngBlobFromSvg(svgContent);
       await saveBlob(saveTarget, pngBlob, 'mermaid-diagram.png');
       setDownloadError('');
     } catch (error) {
@@ -893,10 +1337,47 @@ export default function App() {
     }
   }
 
+  async function handleCopyPng() {
+    if (!svgContent) {
+      return;
+    }
+
+    try {
+      const pngBlob = await createPngBlobFromSvg(svgContent);
+      const clipboardItem = makeClipboardItem(pngBlob);
+
+      if (!clipboardItem || !navigator.clipboard?.write) {
+        throw new Error('clipboard-unavailable');
+      }
+
+      await navigator.clipboard.write([clipboardItem]);
+      setDownloadError('');
+    } catch {
+      setDownloadError('PNG를 클립보드에 복사하지 못했습니다. 브라우저 권한을 확인하세요.');
+    }
+  }
+
   return (
     <main className="app-shell">
       <header className="topbar">
-        <p className="eyebrow">Mermaid Live Editor</p>
+        <div className="topbar-left">
+          <p className="eyebrow">{APP_TITLE}</p>
+          <label className="toolbar-field toolbar-field-inline">
+            <span>문법 예시</span>
+            <select
+              className="toolbar-select"
+              value={selectedExample}
+              onChange={(event) => handleExampleChange(event.target.value)}
+            >
+              <option value="custom">사용자 지정</option>
+              {EXAMPLES.map((example) => (
+                <option key={example.label} value={example.label}>
+                  {example.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
       </header>
 
       <section ref={workspaceRef} className={`workspace ${isMobileClient ? 'is-mobile-client' : ''}`}>
@@ -904,7 +1385,6 @@ export default function App() {
           <article className="panel editor-panel">
             <div className="panel-header">
               <h2>Code</h2>
-              <span>Mermaid Syntax</span>
             </div>
             <div
               className="editor-shell"
@@ -916,7 +1396,10 @@ export default function App() {
                 className="monaco-editor-root"
                 defaultLanguage={MERMAID_LANGUAGE_ID}
                 language={MERMAID_LANGUAGE_ID}
-                onChange={(value) => setCode(value ?? '')}
+                onChange={(value) => {
+                  setCode(value ?? '');
+                  setSelectedExample('custom');
+                }}
                 onMount={handleEditorDidMount}
                 theme="mermaidClean"
                 value={code}
@@ -951,19 +1434,30 @@ export default function App() {
           <article className={`panel guide-panel ${parseError ? 'editor-guide-error' : ''}`}>
             <div className="panel-header">
               <h2>{parseError ? 'Syntax Guide' : 'Guide'}</h2>
+              <span>{guideCopy}</span>
             </div>
             <div className="editor-guide">
               {parseError ? (
                 <>
                   <p className="editor-guide-copy">{errorGuide}</p>
                   <pre className="editor-guide-error-text">{parseError}</pre>
+                  {errorLocation.line ? (
+                    <button type="button" className="guide-action" onClick={handleJumpToError}>
+                      Go to line {errorLocation.line}
+                    </button>
+                  ) : null}
                 </>
               ) : downloadError ? (
                 <pre className="editor-guide-error-text">{downloadError}</pre>
+              ) : shareError ? (
+                <pre className="editor-guide-error-text">{shareError}</pre>
               ) : (
-                <p className="editor-guide-copy">
-                  현재 화면 기준으로 PNG와 MMD를 각각 다운로드합니다. 다른 사용자와 자동 공유되지 않습니다.
-                </p>
+                <>
+                  <p className="editor-guide-copy">{guideCopy}</p>
+                  <p className="editor-guide-copy">
+                    현재 화면 기준으로 PNG와 MMD를 각각 내려받습니다. 공유 링크는 코드 전체를 URL에 담습니다.
+                  </p>
+                </>
               )}
             </div>
           </article>
@@ -986,17 +1480,42 @@ export default function App() {
               <button
                 type="button"
                 className="download-button"
+                onClick={handleCopyPng}
+                disabled={!svgContent}
+              >
+                PNG 복사
+              </button>
+              <button
+                type="button"
+                className="download-button"
                 onClick={handleDownloadPng}
                 disabled={!svgContent}
               >
-                Download PNG
+                PNG 내려받기
               </button>
               <button
                 type="button"
                 className="download-button"
                 onClick={handleDownloadCode}
               >
-                Download MMD
+                MMD 내려받기
+              </button>
+              <button
+                type="button"
+                className={`download-button compare-toggle ${compareMode ? 'is-active' : ''}`}
+                aria-pressed={compareMode}
+                onClick={() => {
+                  if (!compareMode && !frozenSvgContent && svgContent) {
+                    setFrozenSvgContent(svgContent);
+                  }
+                  setCompareMode((current) => !current);
+                }}
+                disabled={!frozenSvgContent && !svgContent}
+              >
+                비교 모드
+              </button>
+              <button type="button" className="download-button" onClick={handleShareLink}>
+                공유 링크
               </button>
               <button
                 type="button"
@@ -1022,13 +1541,38 @@ export default function App() {
             onWheel={handlePreviewWheel}
             title="Alt/Option, Ctrl, Cmd + scroll로 확대/축소"
           >
-            <MermaidPreview
-              code={code}
-              zoom={zoom}
-              onErrorChange={setParseError}
-              onSvgChange={setSvgContent}
-              onApplySelection={handlePreviewSelectionApply}
-            />
+            {compareMode && frozenSvgContent ? (
+              <div className="preview-compare-grid">
+                <section className="preview-compare-pane">
+                  <div className="preview-compare-label">고정본</div>
+                  <div className="mermaid-output">
+                    <div
+                      className="mermaid-scale"
+                      style={{ transform: `scale(${zoom})` }}
+                      dangerouslySetInnerHTML={{ __html: frozenSvgContent }}
+                    />
+                  </div>
+                </section>
+                <section className="preview-compare-pane live">
+                  <div className="preview-compare-label">실시간</div>
+                  <MermaidPreview
+                    code={code}
+                    zoom={zoom}
+                    onErrorChange={setParseError}
+                    onSvgChange={setSvgContent}
+                    onApplySelection={handlePreviewSelectionApply}
+                  />
+                </section>
+              </div>
+            ) : (
+              <MermaidPreview
+                code={code}
+                zoom={zoom}
+                onErrorChange={setParseError}
+                onSvgChange={setSvgContent}
+                onApplySelection={handlePreviewSelectionApply}
+              />
+            )}
           </div>
           <div className="preview-footer">
             {isMobileClient ? (
