@@ -550,11 +550,12 @@ body.is-resizing-panels {
 .preview-canvas {
   flex: 1;
   min-height: 0;
-  padding: 18px;
-  overflow: auto;
+  padding: 8px;
+  overflow: hidden;
   background:
     radial-gradient(circle at top, rgba(255, 255, 255, 0.86), transparent 55%),
-  linear-gradient(180deg, rgba(246, 249, 252, 0.9), rgba(240, 245, 249, 0.92));
+    linear-gradient(180deg, rgba(246, 249, 252, 0.9), rgba(240, 245, 249, 0.92));
+  touch-action: none;
 }
 
 .preview-compare-grid {
@@ -562,6 +563,7 @@ body.is-resizing-panels {
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 14px;
   min-height: 100%;
+  overflow: hidden;
 }
 
 .preview-compare-pane {
@@ -569,6 +571,8 @@ body.is-resizing-panels {
   flex-direction: column;
   gap: 10px;
   min-width: 0;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .preview-compare-label {
@@ -582,6 +586,17 @@ body.is-resizing-panels {
 .preview-compare-pane .mermaid-output {
   flex: 1;
   min-height: 0;
+  overflow: hidden;
+}
+
+.mermaid-stage {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+.mermaid-pan {
+  display: contents;
 }
 
 .monaco-editor .margin-view-overlays .line-numbers {
@@ -692,7 +707,7 @@ body.is-resizing-panels {
 }
 
 .workspace.is-mobile-client .preview-canvas {
-  padding: 10px;
+  padding: 6px;
 }
 
 .workspace.is-mobile-client .preview-compare-grid {
@@ -705,12 +720,12 @@ body.is-resizing-panels {
   border-radius: 9px;
 }
 
-.mermaid-output,
-.preview-state {
+.mermaid-output {
+  position: relative;
   display: grid;
   place-items: center;
   min-height: 100%;
-  padding: 24px;
+  padding: 10px;
   border-radius: 11px;
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(248, 250, 252, 0.98));
@@ -718,15 +733,44 @@ body.is-resizing-panels {
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.82),
     0 16px 44px rgba(15, 23, 42, 0.05);
+  overflow: hidden;
+}
+
+.preview-state {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: 100%;
+  padding: 10px;
+  border-radius: 11px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(248, 250, 252, 0.98));
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.82),
+    0 16px 44px rgba(15, 23, 42, 0.05);
+  overflow: hidden;
 }
 
 .mermaid-scale {
-  transform-origin: center center;
-  transition: transform 120ms ease-out;
+  position: absolute;
+  inset: 0;
+  margin: 0;
 }
 
 .interactive-preview {
   position: relative;
+  cursor: grab;
+  user-select: none;
+}
+
+.interactive-preview * {
+  cursor: inherit;
+}
+
+.preview-canvas.is-dragging,
+.preview-canvas.is-dragging .interactive-preview {
+  cursor: grabbing;
 }
 
 .preview-selected-target {
@@ -817,8 +861,11 @@ body.is-resizing-panels {
 }
 
 .mermaid-output svg {
+  display: block;
+  width: 100%;
+  height: 100%;
   max-width: 100%;
-  height: auto;
+  max-height: 100%;
 }
 
 .preview-state {

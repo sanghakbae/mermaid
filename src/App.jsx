@@ -9,7 +9,7 @@ const DEFAULT_CODE = `flowchart TD
     C --> E[오른쪽 프리뷰 갱신]`;
 
 const MERMAID_LANGUAGE_ID = 'mermaid';
-const APP_TITLE = '머메이드 라이브 에디터';
+const APP_TITLE = 'Mermaid Live Editor';
 const EXAMPLES = [
   {
     label: '흐름도',
@@ -478,6 +478,38 @@ function makeTransparentSvg(svgText) {
   return new XMLSerializer().serializeToString(doc);
 }
 
+function getSvgContentBBox(svgElement) {
+  try {
+    const box = svgElement.getBBox();
+
+    if (
+      Number.isFinite(box.x) &&
+      Number.isFinite(box.y) &&
+      Number.isFinite(box.width) &&
+      Number.isFinite(box.height) &&
+      box.width > 0 &&
+      box.height > 0
+    ) {
+      return box;
+    }
+  } catch {
+    // ignore
+  }
+
+  const viewBox = svgElement.viewBox?.baseVal;
+
+  if (viewBox && viewBox.width > 0 && viewBox.height > 0) {
+    return {
+      x: viewBox.x,
+      y: viewBox.y,
+      width: viewBox.width,
+      height: viewBox.height,
+    };
+  }
+
+  return { x: 0, y: 0, width: 1, height: 1 };
+}
+
 function fitSvgToContent(svgText, padding = 0) {
   const parser = new DOMParser();
   const doc = parser.parseFromString(svgText, 'image/svg+xml');
@@ -495,17 +527,17 @@ function fitSvgToContent(svgText, padding = 0) {
   document.body.appendChild(sandbox);
 
   try {
-    const bbox = measuredSvg.getBBox();
+    const bbox = getSvgContentBBox(measuredSvg);
 
     if (bbox.width > 0 && bbox.height > 0) {
       const x = bbox.x - padding;
       const y = bbox.y - padding;
       const width = bbox.width + padding * 2;
       const height = bbox.height + padding * 2;
-
       measuredSvg.setAttribute('viewBox', `${x} ${y} ${width} ${height}`);
       measuredSvg.setAttribute('width', `${width}`);
       measuredSvg.setAttribute('height', `${height}`);
+      measuredSvg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
       measuredSvg.removeAttribute('style');
       measuredSvg.style.backgroundColor = 'transparent';
     }
@@ -542,6 +574,82 @@ function getSvgExportMetrics(svgText) {
     width: Number.isFinite(widthAttr) && widthAttr > 0 ? Math.ceil(widthAttr) : 1200,
     height: Number.isFinite(heightAttr) && heightAttr > 0 ? Math.ceil(heightAttr) : 800,
   };
+}
+
+function parseSvgViewBox(svgText) {
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(svgText, 'image/svg+xml');
+  const svg = doc.documentElement;
+  const viewBox = svg.getAttribute('viewBox');
+
+  if (viewBox) {
+    const parts = viewBox
+      .trim()
+      .split(/[\s,]+/)
+      .map((value) => Number.parseFloat(value));
+
+    if (parts.length === 4 && parts.every((value) => Number.isFinite(value))) {
+      return {
+        x: parts[0],
+        y: parts[1],
+        width: parts[2],
+        height: parts[3],
+      };
+    }
+  }
+
+  const metrics = getSvgExportMetrics(svgText);
+  return {
+    x: 0,
+    y: 0,
+    width: metrics.width,
+    height: metrics.height,
+  };
+}
+
+function applySvgViewport(svgText, baseViewBox, zoom, center) {
+  if (!svgText || !baseViewBox) {
+    return svgText;
+  }
+
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(svgText, 'image/svg+xml');
+  const svg = doc.documentElement;
+  const visibleWidth = baseViewBox.width / zoom;
+  const visibleHeight = baseViewBox.height / zoom;
+  const minCenterX = visibleWidth / (2 * baseViewBox.width);
+  const minCenterY = visibleHeight / (2 * baseViewBox.height);
+  const clampedCenterX = Math.min(1 - minCenterX, Math.max(minCenterX, center.x));
+  const clampedCenterY = Math.min(1 - minCenterY, Math.max(minCenterY, center.y));
+  const nextX = baseViewBox.x + (clampedCenterX - visibleWidth / (2 * baseViewBox.width)) * baseViewBox.width;
+  const nextY = baseViewBox.y + (clampedCenterY - visibleHeight / (2 * baseViewBox.height)) * baseViewBox.height;
+
+  svg.setAttribute('viewBox', `${nextX} ${nextY} ${visibleWidth} ${visibleHeight}`);
+  svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+  svg.setAttribute('width', '100%');
+  svg.setAttribute('height', '100%');
+
+  return new XMLSerializer().serializeToString(svg);
+}
+
+function serializeFullSvgState(svgElement, baseViewBox) {
+  if (!svgElement) {
+    return '';
+  }
+
+  const clonedSvg = svgElement.cloneNode(true);
+
+  if (baseViewBox) {
+    clonedSvg.setAttribute(
+      'viewBox',
+      `${baseViewBox.x} ${baseViewBox.y} ${baseViewBox.width} ${baseViewBox.height}`,
+    );
+    clonedSvg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+    clonedSvg.setAttribute('width', `${baseViewBox.width}`);
+    clonedSvg.setAttribute('height', `${baseViewBox.height}`);
+  }
+
+  return new XMLSerializer().serializeToString(clonedSvg);
 }
 
 function createDownloadTarget(filename) {
@@ -825,8 +933,9 @@ function registerMermaidLanguage(monaco) {
   });
 }
 
-function MermaidPreview({ code, zoom, onErrorChange, onSvgChange, onApplySelection }) {
+function MermaidPreview({ code, zoom, center, interactionRef, onErrorChange, onSvgChange, onApplySelection }) {
   const [svg, setSvg] = useState('');
+  const [baseViewBox, setBaseViewBox] = useState(null);
   const [selectedTarget, setSelectedTarget] = useState(null);
   const [draftText, setDraftText] = useState('');
   const [modalPosition, setModalPosition] = useState(null);
@@ -834,6 +943,10 @@ function MermaidPreview({ code, zoom, onErrorChange, onSvgChange, onApplySelecti
   const canvasRef = useRef(null);
   const svgHostRef = useRef(null);
   const selectedElementRef = useRef(null);
+  const displaySvg = useMemo(
+    () => applySvgViewport(svg, baseViewBox, zoom, center),
+    [baseViewBox, center.x, center.y, svg, zoom],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -847,11 +960,13 @@ function MermaidPreview({ code, zoom, onErrorChange, onSvgChange, onApplySelecti
         }
 
         const { svg: nextSvg } = await mermaid.render(`mermaid-${renderId}`, code);
+        const transparentSvg = makeTransparentSvg(nextSvg);
 
         if (!cancelled) {
-          setSvg(nextSvg);
+          setSvg(transparentSvg);
+          setBaseViewBox(parseSvgViewBox(transparentSvg));
           onErrorChange('');
-          onSvgChange(nextSvg);
+          onSvgChange(transparentSvg);
           setSelectedTarget(null);
           setDraftText('');
           setModalPosition(null);
@@ -875,6 +990,11 @@ function MermaidPreview({ code, zoom, onErrorChange, onSvgChange, onApplySelecti
   }, [code, onErrorChange, onSvgChange, renderId]);
 
   function handleCanvasClick(event) {
+    if (interactionRef?.current?.suppressClick) {
+      interactionRef.current.suppressClick = false;
+      return;
+    }
+
     if (!svgHostRef.current || !canvasRef.current) {
       return;
     }
@@ -925,7 +1045,7 @@ function MermaidPreview({ code, zoom, onErrorChange, onSvgChange, onApplySelecti
       const svgElement = svgHostRef.current.querySelector('svg');
 
       if (svgElement) {
-        const nextSvg = new XMLSerializer().serializeToString(svgElement);
+        const nextSvg = serializeFullSvgState(svgElement, baseViewBox);
         setSvg(nextSvg);
         onSvgChange(nextSvg);
       }
@@ -964,12 +1084,9 @@ function MermaidPreview({ code, zoom, onErrorChange, onSvgChange, onApplySelecti
 
   return (
     <div ref={canvasRef} className="mermaid-output interactive-preview" onClick={handleCanvasClick}>
-      <div
-        ref={svgHostRef}
-        className="mermaid-scale"
-        style={{ transform: `scale(${zoom})` }}
-        dangerouslySetInnerHTML={{ __html: svg }}
-      />
+      <div className="mermaid-stage">
+        <div ref={svgHostRef} className="mermaid-scale" dangerouslySetInnerHTML={{ __html: displaySvg }} />
+      </div>
       {selectedTarget && modalPosition ? (
         <div
           className="preview-modal"
@@ -1010,9 +1127,36 @@ function MermaidPreview({ code, zoom, onErrorChange, onSvgChange, onApplySelecti
   );
 }
 
+function FrozenPreview({ svg, zoom, center }) {
+  const canvasRef = useRef(null);
+  const baseViewBox = useMemo(() => parseSvgViewBox(svg), [svg]);
+  const displaySvg = useMemo(
+    () => applySvgViewport(svg, baseViewBox, zoom, center),
+    [baseViewBox, center.x, center.y, svg, zoom],
+  );
+
+  if (!svg) {
+    return (
+      <div className="preview-state">
+        <p className="preview-state-label">미리보기</p>
+      </div>
+    );
+  }
+
+  return (
+    <div ref={canvasRef} className="mermaid-output preview-static">
+      <div className="mermaid-stage">
+        <div className="mermaid-scale" dangerouslySetInnerHTML={{ __html: displaySvg }} />
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const [code, setCode] = useState(() => readSharedCodeFromLocation() || DEFAULT_CODE);
   const [zoom, setZoom] = useState(1);
+  const [previewCenter, setPreviewCenter] = useState({ x: 0.5, y: 0.5 });
+  const [isPreviewDragging, setIsPreviewDragging] = useState(false);
   const [codeFontSize, setCodeFontSize] = useState(12);
   const [splitRatio, setSplitRatio] = useState(30);
   const [isMobileClient, setIsMobileClient] = useState(false);
@@ -1029,6 +1173,18 @@ export default function App() {
   const monacoRef = useRef(null);
   const decorationIdsRef = useRef([]);
   const hasMountedRef = useRef(false);
+  const zoomRef = useRef(1);
+  const previewCenterRef = useRef({ x: 0.5, y: 0.5 });
+  const previewInteractionRef = useRef({
+    pointerId: null,
+    startX: 0,
+    startY: 0,
+    startCenter: { x: 0.5, y: 0.5 },
+    isDragging: false,
+    suppressClick: false,
+    clickBlockTimer: null,
+  });
+  const previewPointerRef = useRef({ x: 0.5, y: 0.5 });
   const errorLocation = useMemo(() => parseErrorLocation(parseError), [parseError]);
   const diagramType = useMemo(() => detectDiagramType(code), [code]);
   const guideCopy = useMemo(() => getGuideCopy(diagramType), [diagramType]);
@@ -1052,6 +1208,14 @@ export default function App() {
   }
 
   useEffect(() => {
+    zoomRef.current = zoom;
+  }, [zoom]);
+
+  useEffect(() => {
+    previewCenterRef.current = previewCenter;
+  }, [previewCenter]);
+
+  useEffect(() => {
     if (typeof window === 'undefined') {
       return;
     }
@@ -1062,6 +1226,14 @@ export default function App() {
     }
 
     writeSharedCodeToLocation(code);
+  }, [code]);
+
+  useEffect(() => {
+    setPreviewCenter({ x: 0.5, y: 0.5 });
+    previewCenterRef.current = { x: 0.5, y: 0.5 };
+    setZoom(1);
+    zoomRef.current = 1;
+    setIsPreviewDragging(false);
   }, [code]);
 
   useEffect(() => {
@@ -1195,6 +1367,31 @@ export default function App() {
   function handleEditorDidMount(editor, monaco) {
     editorRef.current = editor;
     monacoRef.current = monaco;
+
+    const domNode = editor.getDomNode();
+
+    function handleEditorKeyDown(event) {
+      const isSelectAll = (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'a';
+
+      if (!isSelectAll) {
+        return;
+      }
+
+      const model = editor.getModel();
+      if (!model) {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+      editor.setSelection(model.getFullModelRange());
+      editor.focus();
+    }
+
+    domNode?.addEventListener('keydown', handleEditorKeyDown, true);
+    editor.onDidDispose(() => {
+      domNode?.removeEventListener('keydown', handleEditorKeyDown, true);
+    });
   }
 
   function handleEditorWillMount(monaco) {
@@ -1231,11 +1428,45 @@ export default function App() {
     });
   }
 
-  function updateZoom(delta) {
+  function applyPreviewZoom(delta, anchor) {
     setZoom((currentZoom) => {
-      const nextZoom = currentZoom + delta;
-      return Math.min(5, Math.max(0.3, Number(nextZoom.toFixed(2))));
+      const baseZoom = zoomRef.current || currentZoom;
+      const baseCenter = previewCenterRef.current;
+      const nextZoom = Math.max(1, Number((baseZoom * (delta > 0 ? 1.1 : 1 / 1.1)).toFixed(3)));
+      const currentWindow = 1 / baseZoom;
+      const nextWindow = 1 / nextZoom;
+      const anchorWorldX = baseCenter.x - currentWindow / 2 + anchor.x * currentWindow;
+      const anchorWorldY = baseCenter.y - currentWindow / 2 + anchor.y * currentWindow;
+      const nextCenterX = anchorWorldX - anchor.x * nextWindow + nextWindow / 2;
+      const nextCenterY = anchorWorldY - anchor.y * nextWindow + nextWindow / 2;
+      const minCenter = nextWindow / 2;
+
+      const clampedCenter = {
+        x: Math.min(1 - minCenter, Math.max(minCenter, nextCenterX)),
+        y: Math.min(1 - minCenter, Math.max(minCenter, nextCenterY)),
+      };
+
+      previewCenterRef.current = clampedCenter;
+      zoomRef.current = nextZoom;
+      setPreviewCenter(clampedCenter);
+
+      return nextZoom;
     });
+  }
+
+  function getPreviewViewportRect(event) {
+    const activePane = event.target.closest('.preview-compare-pane');
+    const activeViewport =
+      activePane?.querySelector('.mermaid-output, .preview-state') ?? event.currentTarget;
+
+    return activeViewport.getBoundingClientRect();
+  }
+
+  function getPreviewAnchorFromClientPoint(clientX, clientY, rect) {
+    return {
+      x: Math.min(1, Math.max(0, (clientX - rect.left) / Math.max(rect.width, 1))),
+      y: Math.min(1, Math.max(0, (clientY - rect.top) / Math.max(rect.height, 1))),
+    };
   }
 
   function updateCodeZoom(delta) {
@@ -1253,7 +1484,119 @@ export default function App() {
     }
 
     event.preventDefault();
-    updateZoom(event.deltaY < 0 ? 0.1 : -0.1);
+
+    const stage = event.target.closest('.preview-compare-pane, .mermaid-output, .preview-state, .preview-canvas')?.querySelector(
+      '.mermaid-stage',
+    ) ?? event.currentTarget.querySelector('.mermaid-stage');
+
+    if (stage) {
+      const stageRect = stage.getBoundingClientRect();
+      const anchor = getPreviewAnchorFromClientPoint(event.clientX, event.clientY, stageRect);
+      previewPointerRef.current = anchor;
+      applyPreviewZoom(event.deltaY < 0 ? 1 : -1, anchor);
+    }
+  }
+
+  function handlePreviewPointerDown(event) {
+    if (event.button !== 0 || event.target.closest('.preview-modal')) {
+      return;
+    }
+
+    const stage = event.currentTarget.querySelector('.mermaid-stage');
+    if (stage) {
+      const stageRect = stage.getBoundingClientRect();
+      previewPointerRef.current = getPreviewAnchorFromClientPoint(event.clientX, event.clientY, stageRect);
+    }
+
+    const interaction = previewInteractionRef.current;
+
+    if (interaction.clickBlockTimer) {
+      window.clearTimeout(interaction.clickBlockTimer);
+      interaction.clickBlockTimer = null;
+    }
+
+    interaction.pointerId = event.pointerId;
+    interaction.startX = event.clientX;
+    interaction.startY = event.clientY;
+    interaction.startCenter = previewCenterRef.current;
+    interaction.isDragging = false;
+    interaction.suppressClick = false;
+
+    try {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    } catch {
+      // ignore
+    }
+  }
+
+  function handlePreviewPointerMove(event) {
+    const stage = event.currentTarget.querySelector('.mermaid-stage');
+    if (stage) {
+      const stageRect = stage.getBoundingClientRect();
+      previewPointerRef.current = getPreviewAnchorFromClientPoint(event.clientX, event.clientY, stageRect);
+    }
+
+    const interaction = previewInteractionRef.current;
+
+    if (interaction.pointerId !== event.pointerId) {
+      return;
+    }
+
+    const dx = event.clientX - interaction.startX;
+    const dy = event.clientY - interaction.startY;
+
+    if (!interaction.isDragging && Math.hypot(dx, dy) > 4) {
+      interaction.isDragging = true;
+      interaction.suppressClick = true;
+      setIsPreviewDragging(true);
+    }
+
+    if (!interaction.isDragging) {
+      return;
+    }
+
+    event.preventDefault();
+    const rect = getPreviewViewportRect(event);
+    const visibleWindow = 1 / zoomRef.current;
+    const nextCenterX = interaction.startCenter.x - (dx / Math.max(rect.width, 1)) * visibleWindow;
+    const nextCenterY = interaction.startCenter.y - (dy / Math.max(rect.height, 1)) * visibleWindow;
+    const minCenter = visibleWindow / 2;
+
+    const clampedCenter = {
+      x: Math.min(1 - minCenter, Math.max(minCenter, nextCenterX)),
+      y: Math.min(1 - minCenter, Math.max(minCenter, nextCenterY)),
+    };
+
+    previewCenterRef.current = clampedCenter;
+    setPreviewCenter(clampedCenter);
+  }
+
+  function finishPreviewPointer(event) {
+    const interaction = previewInteractionRef.current;
+
+    if (interaction.pointerId !== event.pointerId) {
+      return;
+    }
+
+    const wasDragging = interaction.isDragging;
+    interaction.pointerId = null;
+    interaction.isDragging = false;
+    setIsPreviewDragging(false);
+
+    try {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    } catch {
+      // ignore
+    }
+
+    if (wasDragging) {
+      interaction.clickBlockTimer = window.setTimeout(() => {
+        previewInteractionRef.current.suppressClick = false;
+        previewInteractionRef.current.clickBlockTimer = null;
+      }, 0);
+    } else {
+      interaction.suppressClick = false;
+    }
   }
 
   function handleCodeWheel(event) {
@@ -1517,47 +1860,30 @@ export default function App() {
               <button type="button" className="download-button" onClick={handleShareLink}>
                 공유 링크
               </button>
-              <button
-                type="button"
-                className="zoom-button"
-                onClick={() => updateZoom(-0.1)}
-                aria-label="축소"
-              >
-                -
-              </button>
-              <span>{Math.round(zoom * 100)}%</span>
-              <button
-                type="button"
-                className="zoom-button"
-                onClick={() => updateZoom(0.1)}
-                aria-label="확대"
-              >
-                +
-              </button>
             </div>
           </div>
           <div
-            className="preview-canvas"
+            className={`preview-canvas ${zoom > 1 ? 'is-zoomed' : ''} ${isPreviewDragging ? 'is-dragging' : ''}`}
             onWheel={handlePreviewWheel}
+            onPointerDown={handlePreviewPointerDown}
+            onPointerMove={handlePreviewPointerMove}
+            onPointerUp={finishPreviewPointer}
+            onPointerCancel={finishPreviewPointer}
             title="Alt/Option, Ctrl, Cmd + scroll로 확대/축소"
           >
             {compareMode && frozenSvgContent ? (
               <div className="preview-compare-grid">
                 <section className="preview-compare-pane">
                   <div className="preview-compare-label">고정본</div>
-                  <div className="mermaid-output">
-                    <div
-                      className="mermaid-scale"
-                      style={{ transform: `scale(${zoom})` }}
-                      dangerouslySetInnerHTML={{ __html: frozenSvgContent }}
-                    />
-                  </div>
+                  <FrozenPreview svg={frozenSvgContent} zoom={zoom} center={previewCenter} />
                 </section>
                 <section className="preview-compare-pane live">
                   <div className="preview-compare-label">실시간</div>
                   <MermaidPreview
                     code={code}
                     zoom={zoom}
+                    center={previewCenter}
+                    interactionRef={previewInteractionRef}
                     onErrorChange={setParseError}
                     onSvgChange={setSvgContent}
                     onApplySelection={handlePreviewSelectionApply}
@@ -1568,6 +1894,8 @@ export default function App() {
               <MermaidPreview
                 code={code}
                 zoom={zoom}
+                center={previewCenter}
+                interactionRef={previewInteractionRef}
                 onErrorChange={setParseError}
                 onSvgChange={setSvgContent}
                 onApplySelection={handlePreviewSelectionApply}
@@ -1578,10 +1906,11 @@ export default function App() {
             {isMobileClient ? (
               <>
                 <span>모바일에서는 +/- 버튼으로 확대/축소합니다.</span>
-                <span>데스크톱에서는 Alt/Option, Ctrl/Cmd + scroll도 지원합니다.</span>
+                <span>데스크톱에서는 드래그로 이동하고, Alt/Option, Ctrl/Cmd + scroll로 확대/축소합니다.</span>
               </>
             ) : (
               <>
+                <span>드래그로 이동합니다.</span>
                 <span>Zoom: Windows/Linux Alt + scroll, macOS Option + scroll</span>
                 <span>Fallback: Ctrl 또는 Cmd + scroll, 또는 +/- 버튼</span>
               </>
