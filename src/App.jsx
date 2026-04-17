@@ -737,6 +737,55 @@ function isEditableGroup(element) {
   return Boolean(findBestLabelNode(element));
 }
 
+function toElement(node) {
+  if (!node) {
+    return null;
+  }
+
+  if (node.nodeType === Node.ELEMENT_NODE) {
+    return node;
+  }
+
+  if (node.nodeType === Node.TEXT_NODE) {
+    return node.parentElement;
+  }
+
+  return null;
+}
+
+function getParentElement(node) {
+  const element = toElement(node);
+
+  if (!element) {
+    return null;
+  }
+
+  if (element.parentElement) {
+    return element.parentElement;
+  }
+
+  const parentNode = element.parentNode;
+  return parentNode && parentNode.nodeType === Node.ELEMENT_NODE ? parentNode : null;
+}
+
+function elementMatches(element, selector) {
+  return Boolean(element && typeof element.matches === 'function' && element.matches(selector));
+}
+
+function closestMatchingElement(node, selector) {
+  let current = toElement(node);
+
+  while (current) {
+    if (elementMatches(current, selector)) {
+      return current;
+    }
+
+    current = getParentElement(current);
+  }
+
+  return null;
+}
+
 function collectEditableGroups(root) {
   return Array.from(root.querySelectorAll('g')).filter((group) => isEditableGroup(group));
 }
@@ -810,14 +859,14 @@ function applyTextToLabelElement(element, nextText) {
 }
 
 function findEditableLabelTarget(target) {
-  let current = target instanceof Element ? target : null;
+  let current = toElement(target);
 
   while (current) {
     if (isEditableGroup(current)) {
       return current;
     }
 
-    current = current.parentElement;
+    current = getParentElement(current);
   }
 
   return null;
@@ -855,14 +904,14 @@ function replaceEdgeLabelInCode(code, currentText, nextLabel) {
 }
 
 function getSelectionMeta(target, labelText) {
-  if (target.matches('g.edgeLabel') || target.closest('g.edgeLabel')) {
+  if (elementMatches(target, 'g.edgeLabel') || closestMatchingElement(target, 'g.edgeLabel')) {
     return {
       kind: 'edgeLabel',
       currentText: labelText,
     };
   }
 
-  const nodeGroup = target.closest('g');
+  const nodeGroup = closestMatchingElement(target, 'g');
 
   if (nodeGroup) {
     return {
@@ -1012,7 +1061,7 @@ function MermaidPreview({ code, zoom, center, interactionRef, onErrorChange, onS
       return;
     }
 
-    if (event.target.closest('.preview-modal')) {
+    if (closestMatchingElement(event.target, '.preview-modal')) {
       return;
     }
 
@@ -1177,6 +1226,7 @@ export default function App() {
   const [svgContent, setSvgContent] = useState('');
   const [downloadError, setDownloadError] = useState('');
   const [shareError, setShareError] = useState('');
+  const [shareSuccessVisible, setShareSuccessVisible] = useState(false);
   const [selectedExample, setSelectedExample] = useState('custom');
   const [frozenSvgContent, setFrozenSvgContent] = useState('');
   const [compareMode, setCompareMode] = useState(false);
@@ -1264,6 +1314,20 @@ export default function App() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!shareSuccessVisible) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      setShareSuccessVisible(false);
+    }, 1400);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [shareSuccessVisible]);
+
   function handlePreviewSelectionApply(selection, nextText) {
     if (!selection) {
       return false;
@@ -1316,8 +1380,10 @@ export default function App() {
     try {
       await navigator.clipboard.writeText(shareLink);
       setShareError('');
+      setShareSuccessVisible(true);
     } catch {
       setShareError('공유 링크 복사에 실패했습니다. 브라우저 권한을 확인하세요.');
+      setShareSuccessVisible(false);
     }
   }
 
@@ -1511,7 +1577,11 @@ export default function App() {
   }
 
   function handlePreviewPointerDown(event) {
-    if (event.button !== 0 || event.target.closest('.preview-modal')) {
+    if (event.button !== 0 || closestMatchingElement(event.target, '.preview-modal')) {
+      return;
+    }
+
+    if (findEditableLabelTarget(event.target)) {
       return;
     }
 
@@ -1715,6 +1785,7 @@ export default function App() {
 
   return (
     <main className="app-shell">
+      {shareSuccessVisible ? <div className="center-toast">복사 성공</div> : null}
       <header className="topbar">
         <div className="topbar-left">
           <p className="eyebrow">{APP_TITLE}</p>
