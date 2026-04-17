@@ -719,8 +719,26 @@ function writeSharedCodeToLocation(code) {
   window.history.replaceState({}, '', url.toString());
 }
 
+function isEditableGroup(element) {
+  if (!element || element.tagName?.toLowerCase() !== 'g') {
+    return false;
+  }
+
+  const className = typeof element.className === 'object' ? element.className.baseVal : element.className ?? '';
+
+  if (
+    /\b(edgeLabel|node|cluster|actor|note|messageText|messageTextContainer|loopText|label|labelGroup|nodeLabel)\b/.test(
+      className,
+    )
+  ) {
+    return true;
+  }
+
+  return Boolean(findBestLabelNode(element));
+}
+
 function collectEditableGroups(root) {
-  return Array.from(root.querySelectorAll('g.edgeLabel, g.node, g.cluster, g.actor, g.note'));
+  return Array.from(root.querySelectorAll('g')).filter((group) => isEditableGroup(group));
 }
 
 function findBestLabelNode(element) {
@@ -792,22 +810,17 @@ function applyTextToLabelElement(element, nextText) {
 }
 
 function findEditableLabelTarget(target) {
-  const primaryTarget = target.closest('g.edgeLabel, g.node, g.cluster, g.actor, g.note');
+  let current = target instanceof Element ? target : null;
 
-  if (primaryTarget) {
-    return primaryTarget;
+  while (current) {
+    if (isEditableGroup(current)) {
+      return current;
+    }
+
+    current = current.parentElement;
   }
 
-  const labelTarget = target.closest('g.nodeLabel, g.label, g[class*="label"]');
-
-  if (!labelTarget) {
-    return null;
-  }
-
-  return (
-    labelTarget.closest('g.node, g.cluster, g.edgeLabel, g.actor, g.note') ??
-    labelTarget
-  );
+  return null;
 }
 
 function escapeRegExp(value) {
@@ -849,7 +862,7 @@ function getSelectionMeta(target, labelText) {
     };
   }
 
-  const nodeGroup = target.closest('g.node, g.cluster, g.actor, g.note');
+  const nodeGroup = target.closest('g');
 
   if (nodeGroup) {
     return {
