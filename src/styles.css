@@ -786,6 +786,11 @@ body.is-resizing-panels {
   cursor: inherit;
 }
 
+.preview-canvas.is-pointer-down .interactive-preview,
+.preview-canvas.is-pointer-down .interactive-preview * {
+  cursor: grab;
+}
+
 .preview-canvas.is-dragging,
 .preview-canvas.is-dragging .interactive-preview {
   cursor: grabbing;

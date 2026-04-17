@@ -872,6 +872,15 @@ function findEditableLabelTarget(target) {
   return null;
 }
 
+function isDirectLabelHit(target) {
+  return Boolean(
+    closestMatchingElement(
+      target,
+      'text, tspan, foreignObject, span, div, g.edgeLabel, g.label, g.nodeLabel, .cluster-label',
+    ),
+  );
+}
+
 function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
@@ -1051,34 +1060,23 @@ function MermaidPreview({ code, zoom, center, interactionRef, onErrorChange, onS
     };
   }, [code, onErrorChange, onSvgChange, renderId]);
 
-  function handleCanvasClick(event) {
-    if (interactionRef?.current?.suppressClick) {
-      interactionRef.current.suppressClick = false;
-      return;
-    }
-
+  function openEditModalForTarget(target) {
     if (!svgHostRef.current || !canvasRef.current) {
-      return;
+      return false;
     }
-
-    if (closestMatchingElement(event.target, '.preview-modal')) {
-      return;
-    }
-
-    const target = findEditableLabelTarget(event.target);
 
     if (!target || !svgHostRef.current.contains(target)) {
       setSelectedTarget(null);
       clearSelectedElementStyles(selectedElementRef.current);
       selectedElementRef.current = null;
       setModalPosition(null);
-      return;
+      return false;
     }
 
     const labelText = getTextFromLabelElement(target);
 
     if (!labelText) {
-      return;
+      return false;
     }
 
     const canvasRect = canvasRef.current.getBoundingClientRect();
@@ -1093,6 +1091,43 @@ function MermaidPreview({ code, zoom, center, interactionRef, onErrorChange, onS
       left: targetRect.left - canvasRect.left + canvasRef.current.scrollLeft,
       top: targetRect.bottom - canvasRect.top + canvasRef.current.scrollTop + 10,
     });
+    return true;
+  }
+
+  useEffect(() => {
+    if (!interactionRef?.current) {
+      return;
+    }
+
+    interactionRef.current.openEditModal = openEditModalForTarget;
+
+    return () => {
+      if (interactionRef.current) {
+        interactionRef.current.openEditModal = null;
+      }
+    };
+  }, [interactionRef, openEditModalForTarget]);
+
+  function handleCanvasClick(event) {
+    const interaction = interactionRef?.current;
+
+    if (interaction?.suppressClick) {
+      interaction.suppressClick = false;
+      interaction.clickTarget = null;
+      return;
+    }
+
+    if (closestMatchingElement(event.target, '.preview-modal')) {
+      return;
+    }
+
+    const target = interaction?.clickTarget ?? findEditableLabelTarget(event.target);
+
+    if (interaction) {
+      interaction.clickTarget = null;
+    }
+
+    openEditModalForTarget(target);
   }
 
   function handleApplyEdit() {
@@ -1145,7 +1180,11 @@ function MermaidPreview({ code, zoom, center, interactionRef, onErrorChange, onS
   }
 
   return (
-    <div ref={canvasRef} className="mermaid-output interactive-preview" onClick={handleCanvasClick}>
+    <div
+      ref={canvasRef}
+      className="mermaid-output interactive-preview"
+      onClick={handleCanvasClick}
+    >
       <div className="mermaid-stage">
         <div ref={svgHostRef} className="mermaid-scale" dangerouslySetInnerHTML={{ __html: displaySvg }} />
       </div>
@@ -1219,6 +1258,7 @@ export default function App() {
   const [zoom, setZoom] = useState(1);
   const [previewCenter, setPreviewCenter] = useState({ x: 0.5, y: 0.5 });
   const [isPreviewDragging, setIsPreviewDragging] = useState(false);
+  const [isPreviewPointerDown, setIsPreviewPointerDown] = useState(false);
   const [codeFontSize, setCodeFontSize] = useState(12);
   const [splitRatio, setSplitRatio] = useState(30);
   const [isMobileClient, setIsMobileClient] = useState(false);
@@ -1243,6 +1283,8 @@ export default function App() {
     startX: 0,
     startY: 0,
     startCenter: { x: 0.5, y: 0.5 },
+    clickTarget: null,
+    openEditModal: null,
     isDragging: false,
     suppressClick: false,
     clickBlockTimer: null,
@@ -1297,6 +1339,7 @@ export default function App() {
     setZoom(1);
     zoomRef.current = 1;
     setIsPreviewDragging(false);
+    setIsPreviewPointerDown(false);
   }, [code]);
 
   useEffect(() => {
@@ -1581,10 +1624,6 @@ export default function App() {
       return;
     }
 
-    if (findEditableLabelTarget(event.target)) {
-      return;
-    }
-
     const stage = event.currentTarget.querySelector('.mermaid-stage');
     if (stage) {
       const stageRect = stage.getBoundingClientRect();
@@ -1602,8 +1641,10 @@ export default function App() {
     interaction.startX = event.clientX;
     interaction.startY = event.clientY;
     interaction.startCenter = previewCenterRef.current;
+    interaction.clickTarget = findEditableLabelTarget(event.target);
     interaction.isDragging = false;
     interaction.suppressClick = false;
+    setIsPreviewPointerDown(true);
 
     try {
       event.currentTarget.setPointerCapture(event.pointerId);
@@ -1630,6 +1671,7 @@ export default function App() {
 
     if (!interaction.isDragging && Math.hypot(dx, dy) > 4) {
       interaction.isDragging = true;
+      interaction.clickTarget = null;
       interaction.suppressClick = true;
       setIsPreviewDragging(true);
     }
@@ -1665,6 +1707,7 @@ export default function App() {
     interaction.pointerId = null;
     interaction.isDragging = false;
     setIsPreviewDragging(false);
+    setIsPreviewPointerDown(false);
 
     try {
       event.currentTarget.releasePointerCapture(event.pointerId);
@@ -1673,12 +1716,24 @@ export default function App() {
     }
 
     if (wasDragging) {
+      interaction.clickTarget = null;
       interaction.clickBlockTimer = window.setTimeout(() => {
         previewInteractionRef.current.suppressClick = false;
         previewInteractionRef.current.clickBlockTimer = null;
       }, 0);
     } else {
       interaction.suppressClick = false;
+      const ownerDocument = event.currentTarget.ownerDocument ?? document;
+      const pointTarget = ownerDocument.elementFromPoint(event.clientX, event.clientY);
+      const resolvedTarget = findEditableLabelTarget(pointTarget) ?? interaction.clickTarget;
+
+      if (resolvedTarget && typeof interaction.openEditModal === 'function') {
+        const opened = interaction.openEditModal(resolvedTarget);
+        if (opened) {
+          interaction.suppressClick = true;
+        }
+      }
+      interaction.clickTarget = null;
     }
   }
 
@@ -1947,7 +2002,7 @@ export default function App() {
             </div>
           </div>
           <div
-            className={`preview-canvas ${zoom > 1 ? 'is-zoomed' : ''} ${isPreviewDragging ? 'is-dragging' : ''}`}
+            className={`preview-canvas ${zoom > 1 ? 'is-zoomed' : ''} ${isPreviewPointerDown ? 'is-pointer-down' : ''} ${isPreviewDragging ? 'is-dragging' : ''}`}
             onWheel={handlePreviewWheel}
             onPointerDown={handlePreviewPointerDown}
             onPointerMove={handlePreviewPointerMove}
