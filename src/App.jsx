@@ -91,11 +91,11 @@ const EXAMPLES = [
     label: 'Git',
     value: `gitGraph
     commit
-    branch 개발
-    checkout 개발
+    branch "개발"
+    checkout "개발"
     commit
     checkout main
-    merge 개발`,
+    merge "개발"`,
   },
   {
     label: '타임라인',
