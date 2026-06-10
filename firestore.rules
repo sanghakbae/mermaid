@@ -1,0 +1,19 @@
+rules_version = '2';
+
+// Firebase 콘솔 > Firestore Database > 규칙(Rules) 탭에 붙여넣으세요.
+// 로그인한 사용자가 본인 소유(uid 일치)의 다이어그램만 읽고 쓸 수 있습니다.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /diagrams/{diagramId} {
+      allow read, delete: if request.auth != null
+        && request.auth.uid == resource.data.uid;
+
+      allow create: if request.auth != null
+        && request.auth.uid == request.resource.data.uid;
+
+      allow update: if request.auth != null
+        && request.auth.uid == resource.data.uid
+        && request.auth.uid == request.resource.data.uid;
+    }
+  }
+}

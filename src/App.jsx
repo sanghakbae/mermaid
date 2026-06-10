@@ -1,6 +1,17 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import Editor from '@monaco-editor/react';
 import mermaid from 'mermaid';
+import {
+  deleteDiagram,
+  ensureSignedIn,
+  isFirebaseConfigured,
+  loginWithGoogle,
+  logout,
+  saveDiagram,
+  updateDiagram,
+  watchAuth,
+  watchDiagrams,
+} from './firebase';
 
 const DEFAULT_CODE = `flowchart TD
     A[요구사항 입력] --> B{구문 파싱}
@@ -244,6 +255,24 @@ function toBase64Url(text) {
   }
 
   return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+}
+
+// 코드에서 목록에 보여줄 제목을 추론합니다(라벨이 있으면 그것을, 없으면 다이어그램 타입).
+function deriveTitleFromCode(code) {
+  const lines = code.split('\n').map((line) => line.trim()).filter(Boolean);
+
+  for (const line of lines) {
+    const labelMatch = line.match(/[\[({|]+\s*([^\])}|>-]+?)\s*[\])}|]+/);
+    if (labelMatch && labelMatch[1].trim().length > 0) {
+      return labelMatch[1].trim().slice(0, 40);
+    }
+  }
+
+  if (lines.length > 0) {
+    return lines[0].slice(0, 40);
+  }
+
+  return '제목 없음';
 }
 
 function fromBase64Url(value) {
@@ -1270,6 +1299,18 @@ export default function App() {
   const [selectedExample, setSelectedExample] = useState('custom');
   const [frozenSvgContent, setFrozenSvgContent] = useState('');
   const [compareMode, setCompareMode] = useState(false);
+  const [user, setUser] = useState(null);
+  const [diagrams, setDiagrams] = useState([]);
+  const [isLibraryOpen, setIsLibraryOpen] = useState(false);
+  const [activeDiagramId, setActiveDiagramId] = useState(null);
+  const [diagramTitle, setDiagramTitle] = useState('');
+  const [cloudError, setCloudError] = useState('');
+  const [cloudNotice, setCloudNotice] = useState('');
+  const [saveStatus, setSaveStatus] = useState('idle'); // idle | saving | saved
+  const userInteractedRef = useRef(false);
+  const activeDiagramIdRef = useRef(null);
+  const diagramTitleRef = useRef('');
+  const skipAutosaveRef = useRef(false);
   const workspaceRef = useRef(null);
   const isResizingRef = useRef(false);
   const editorRef = useRef(null);
@@ -1371,6 +1412,167 @@ export default function App() {
     };
   }, [shareSuccessVisible]);
 
+  useEffect(() => {
+    const unsubscribe = watchAuth((nextUser) => {
+      setUser(nextUser);
+      if (!nextUser) {
+        setDiagrams([]);
+        setIsLibraryOpen(false);
+        setActiveDiagramId(null);
+        activeDiagramIdRef.current = null;
+        skipAutosaveRef.current = true;
+        setSaveStatus('idle');
+        // 로그아웃되면 자동 저장용 익명 신원을 다시 확보합니다.
+        ensureSignedIn().catch(() => {});
+      }
+    });
+
+    // 최초 진입 시 익명 로그인으로 신원을 확보해 자동 저장이 항상 동작하게 합니다.
+    ensureSignedIn().catch(() => setCloudError('자동 저장 초기화에 실패했습니다.'));
+
+    return unsubscribe;
+  }, []);
+
+  useEffect(() => {
+    if (!user) {
+      return undefined;
+    }
+
+    return watchDiagrams(
+      user.uid,
+      (items) => setDiagrams(items),
+      (error) => {
+        console.error('[diagrams] subscription error:', error?.code, error?.message);
+        setCloudError('다이어그램 목록을 불러오지 못했습니다.');
+      },
+    );
+  }, [user]);
+
+  useEffect(() => {
+    activeDiagramIdRef.current = activeDiagramId;
+  }, [activeDiagramId]);
+
+  useEffect(() => {
+    diagramTitleRef.current = diagramTitle;
+  }, [diagramTitle]);
+
+  // 코드가 바뀌면 디바운스 후 자동 저장합니다(붙여넣기 포함, 무조건 저장).
+  useEffect(() => {
+    if (!user) {
+      return undefined;
+    }
+
+    // 불러오기 직후에는 동일 내용 재저장을 건너뜁니다.
+    if (skipAutosaveRef.current) {
+      skipAutosaveRef.current = false;
+      return undefined;
+    }
+
+    // 사용자가 아직 손대지 않은 초기 코드는 저장하지 않습니다.
+    if (!userInteractedRef.current || !code.trim()) {
+      return undefined;
+    }
+
+    setSaveStatus('saving');
+
+    const timer = window.setTimeout(async () => {
+      const title = (diagramTitleRef.current || deriveTitleFromCode(code)).trim();
+
+      try {
+        if (activeDiagramIdRef.current) {
+          await updateDiagram(activeDiagramIdRef.current, title, code);
+        } else {
+          const created = await saveDiagram(user.uid, title, code);
+          setActiveDiagramId(created.id);
+        }
+        setSaveStatus('saved');
+      } catch {
+        setSaveStatus('idle');
+        setCloudError('자동 저장에 실패했습니다.');
+      }
+    }, 900);
+
+    return () => window.clearTimeout(timer);
+  }, [code, user]);
+
+  useEffect(() => {
+    if (!cloudNotice) {
+      return undefined;
+    }
+
+    const timer = window.setTimeout(() => setCloudNotice(''), 1800);
+    return () => window.clearTimeout(timer);
+  }, [cloudNotice]);
+
+  useEffect(() => {
+    if (!cloudError) {
+      return undefined;
+    }
+
+    const timer = window.setTimeout(() => setCloudError(''), 2600);
+    return () => window.clearTimeout(timer);
+  }, [cloudError]);
+
+  async function handleLogin() {
+    try {
+      setCloudError('');
+      await loginWithGoogle();
+    } catch (error) {
+      if (error?.code === 'auth/popup-closed-by-user') {
+        return;
+      }
+      setCloudError('로그인에 실패했습니다. 다시 시도해 주세요.');
+    }
+  }
+
+  async function handleLogout() {
+    try {
+      await logout();
+      setCloudNotice('로그아웃되었습니다.');
+    } catch {
+      setCloudError('로그아웃에 실패했습니다.');
+    }
+  }
+
+  function handleLoadDiagram(item) {
+    skipAutosaveRef.current = true;
+    setActiveDiagramId(item.id);
+    activeDiagramIdRef.current = item.id;
+    setDiagramTitle(item.title ?? '');
+    diagramTitleRef.current = item.title ?? '';
+    setCode(item.code ?? '');
+    setSelectedExample('custom');
+    setIsLibraryOpen(false);
+    setSaveStatus('saved');
+    setCloudNotice(`"${item.title || '제목 없음'}"을(를) 불러왔습니다.`);
+  }
+
+  async function handleDeleteDiagram(item) {
+    setCloudError('');
+    try {
+      await deleteDiagram(item.id);
+      if (activeDiagramId === item.id) {
+        setActiveDiagramId(null);
+      }
+      setCloudNotice('삭제했습니다.');
+    } catch {
+      setCloudError('삭제에 실패했습니다.');
+    }
+  }
+
+  function handleNewDiagram() {
+    skipAutosaveRef.current = true;
+    setActiveDiagramId(null);
+    activeDiagramIdRef.current = null;
+    setDiagramTitle('');
+    diagramTitleRef.current = '';
+    userInteractedRef.current = false;
+    setSaveStatus('idle');
+    setCode(DEFAULT_CODE);
+    setSelectedExample('custom');
+    setCloudNotice('새 다이어그램으로 전환했습니다. 편집을 시작하면 새 항목으로 저장됩니다.');
+  }
+
   function handlePreviewSelectionApply(selection, nextText) {
     if (!selection) {
       return false;
@@ -1380,6 +1582,7 @@ export default function App() {
       const nextCode = replaceNodeLabelInCode(code, selection.currentText, nextText);
 
       if (nextCode !== code) {
+        userInteractedRef.current = true;
         setCode(nextCode);
         setSelectedExample('custom');
         return true;
@@ -1390,6 +1593,7 @@ export default function App() {
       const nextCode = replaceEdgeLabelInCode(code, selection.currentText, nextText);
 
       if (nextCode !== code) {
+        userInteractedRef.current = true;
         setCode(nextCode);
         setSelectedExample('custom');
         return true;
@@ -1409,12 +1613,14 @@ export default function App() {
     const example = EXAMPLES.find((item) => item.label === nextValue);
 
     if (example) {
+      userInteractedRef.current = true;
       setCode(example.value);
       setShareError('');
     }
   }
 
   function handleFormatCode() {
+    userInteractedRef.current = true;
     setCode((currentCode) => formatMermaidCode(currentCode));
     setSelectedExample('custom');
   }
@@ -1841,6 +2047,8 @@ export default function App() {
   return (
     <main className="app-shell">
       {shareSuccessVisible ? <div className="center-toast">복사 성공</div> : null}
+      {cloudNotice ? <div className="center-toast">{cloudNotice}</div> : null}
+      {cloudError ? <div className="center-toast is-error">{cloudError}</div> : null}
       <header className="topbar">
         <div className="topbar-left">
           <p className="eyebrow">{APP_TITLE}</p>
@@ -1860,6 +2068,81 @@ export default function App() {
             </select>
           </label>
         </div>
+        {isFirebaseConfigured ? (
+          <div className="topbar-right">
+            <input
+              className="diagram-title-input"
+              type="text"
+              value={diagramTitle}
+              onChange={(event) => setDiagramTitle(event.target.value)}
+              placeholder="제목 (비우면 자동)"
+              aria-label="다이어그램 제목"
+            />
+            <span className={`save-status save-status-${saveStatus}`}>
+              {saveStatus === 'saving' ? '저장 중…' : saveStatus === 'saved' ? '자동 저장됨' : '자동 저장'}
+            </span>
+            <button type="button" className="topbar-button" onClick={handleNewDiagram}>
+              새 문서
+            </button>
+            <button
+              type="button"
+              className={`topbar-button ${isLibraryOpen ? 'is-active' : ''}`}
+              aria-expanded={isLibraryOpen}
+              onClick={() => setIsLibraryOpen((current) => !current)}
+            >
+              내 다이어그램 ({diagrams.length})
+            </button>
+            {user && !user.isAnonymous ? (
+              <button type="button" className="topbar-button ghost" onClick={handleLogout}>
+                로그아웃
+              </button>
+            ) : (
+              <button type="button" className="topbar-button" onClick={handleLogin}>
+                Google로 로그인
+              </button>
+            )}
+            {isLibraryOpen ? (
+              <div className="library-panel">
+                <div className="library-header">
+                  <span>
+                    {user && !user.isAnonymous
+                      ? user.displayName || user.email || '내 다이어그램'
+                      : '이 브라우저에 저장됨 · 로그인하면 다른 기기에서도 보입니다'}
+                  </span>
+                </div>
+                {diagrams.length === 0 ? (
+                  <p className="library-empty">저장된 다이어그램이 없습니다.</p>
+                ) : (
+                  <ul className="library-list">
+                    {diagrams.map((item) => (
+                      <li
+                        key={item.id}
+                        className={`library-item ${item.id === activeDiagramId ? 'is-active' : ''}`}
+                      >
+                        <button
+                          type="button"
+                          className="library-item-open"
+                          onClick={() => handleLoadDiagram(item)}
+                          title="불러오기"
+                        >
+                          {item.title || '제목 없음'}
+                        </button>
+                        <button
+                          type="button"
+                          className="library-item-delete"
+                          onClick={() => handleDeleteDiagram(item)}
+                          aria-label="삭제"
+                        >
+                          삭제
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
       </header>
 
       <section ref={workspaceRef} className={`workspace ${isMobileClient ? 'is-mobile-client' : ''}`}>
@@ -1879,6 +2162,7 @@ export default function App() {
                 defaultLanguage={MERMAID_LANGUAGE_ID}
                 language={MERMAID_LANGUAGE_ID}
                 onChange={(value) => {
+                  userInteractedRef.current = true;
                   setCode(value ?? '');
                   setSelectedExample('custom');
                 }}
